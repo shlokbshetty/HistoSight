@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HistoSight — Clinical Lens</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface-dim":               "#111319",
+        "surface":                   "#111319",
+        "surface-container-lowest":  "#0c0e14",
+        "surface-container-low":     "#191b22",
+        "surface-container":         "#1e1f26",
+        "surface-container-high":    "#282a30",
+        "surface-container-highest": "#33343b",
+        "surface-bright":            "#373940",
+        "on-surface":                "#e2e2eb",
+        "on-surface-variant":        "#bac9c9",
+        "primary":                   "#45e4e4",
+        "primary-container":         "#00c8c8",
+        "on-primary":                "#003737",
+        "on-primary-container":      "#004e4e",
+        "secondary":                 "#c3c5dc",
+        "secondary-container":       "#434659",
+        "on-secondary":              "#2c2f41",
+        "tertiary":                  "#ffc29d",
+        "tertiary-container":        "#ff9b55",
+        "on-tertiary":               "#512400",
+        "error":                     "#ffb4ab",
+        "error-container":           "#93000a",
+        "on-error":                  "#690005",
+        "on-error-container":        "#ffdad6",
+        "outline":                   "#859493",
+        "outline-variant":           "#3c4949",
+        "inverse-surface":           "#e2e2eb",
+        "inverse-on-surface":        "#2e3037",
+        "inverse-primary":           "#006a6a",
+        "background":                "#111319",
+        "on-background":             "#e2e2eb",
+      },
+      fontFamily: {
+        headline: ["Manrope"],
+        body:     ["Inter"],
+      }
+    }
+  }
+}
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .nav-active .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  body { font-family: 'Inter', sans-serif; }
+  h1,h2,h3,h4 { font-family: 'Manrope', sans-serif; }
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+  .shimmer { animation: shimmer 2s infinite; }
+  #toast {
+    transition: opacity 0.4s ease;
+  }
+</style>
+</head>
+<body class="bg-surface-dim text-on-surface flex min-h-screen">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════════════════════════ -->
+<aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-surface-container-low flex flex-col py-6 z-50 transition-transform duration-300">
+  <div class="px-6 mb-8">
+    <h1 class="text-xl font-bold text-on-surface tracking-wider">HistoSight</h1>
+    <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/60 font-semibold mt-1">Clinical Lens v1.0</p>
+  </div>
+  <nav class="flex-1 space-y-1" id="sidebar-nav">
+    <a data-section="upload"     class="nav-link flex items-center gap-3 px-4 py-3 mx-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary transition-all duration-200 cursor-pointer">
+      <span class="material-symbols-outlined">cloud_upload</span>
+      <span class="font-headline font-semibold text-sm">Upload</span>
+    </a>
+    <a data-section="analytics"  class="nav-link flex items-center gap-3 px-4 py-3 mx-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary transition-all duration-200 cursor-pointer">
+      <span class="material-symbols-outlined">analytics</span>
+      <span class="font-headline font-semibold text-sm">Analytics</span>
+    </a>
+    <a data-section="comparison" class="nav-link flex items-center gap-3 px-4 py-3 mx-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary transition-all duration-200 cursor-pointer">
+      <span class="material-symbols-outlined">compare_arrows</span>
+      <span class="font-headline font-semibold text-sm">Comparison</span>
+    </a>
+    <a data-section="test"       class="nav-link flex items-center gap-3 px-4 py-3 mx-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary transition-all duration-200 cursor-pointer">
+      <span class="material-symbols-outlined">biotech</span>
+      <span class="font-headline font-semibold text-sm">Test Results</span>
+    </a>
+    <a data-section="about"      class="nav-link flex items-center gap-3 px-4 py-3 mx-2 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary transition-all duration-200 cursor-pointer">
+      <span class="material-symbols-outlined">info</span>
+      <span class="font-headline font-semibold text-sm">About</span>
+    </a>
+  </nav>
+  <div class="px-6 mt-auto pt-4 border-t border-outline-variant/10">
+    <p class="text-[10px] text-on-surface-variant/50 uppercase tracking-widest">SimCLR + Macenko · PCam</p>
+  </div>
+</aside>
+
+<!-- Hamburger (mobile) -->
+<button id="hamburger" class="fixed top-4 left-4 z-[60] md:hidden bg-surface-container p-2 rounded-xl border border-outline-variant/20 text-on-surface-variant hover:text-primary transition-colors">
+  <span class="material-symbols-outlined">menu</span>
+</button>
+
+<!-- Sidebar overlay (mobile) -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden" onclick="closeSidebar()"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN CANVAS
+════════════════════════════════════════════════════════════ -->
+<main class="md:ml-64 flex-1 flex flex-col min-h-screen">
+
+  <!-- Top bar -->
+  <header class="sticky top-0 w-full h-14 bg-surface-dim/80 backdrop-blur-xl z-30 flex items-center justify-between px-6 border-b border-outline-variant/10">
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant hidden sm:block">Clinical Diagnostics</span>
+      <div class="h-4 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <span class="text-xs font-medium text-primary tracking-wide">AI PREDICTION ENGINE</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border border-outline-variant/10">
+      <div class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#45e4e4] animate-pulse"></div>
+      <span id="status-badge" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Idle</span>
+    </div>
+  </header>
+
+  <!-- Page sections -->
+  <div class="flex-1 p-6 md:p-8">
+
+    <!-- ══════════════════════════════════════
+         SECTION: UPLOAD & PREDICT
+    ═══════════════════════════════════════ -->
+    <section id="section-upload" class="hidden">
+      <div class="grid grid-cols-12 gap-6">
+        <!-- Left: upload controls -->
+        <div class="col-span-12 lg:col-span-7 flex flex-col gap-6">
+          <div>
+            <h2 class="text-2xl font-extrabold tracking-tight">Image Classification</h2>
+            <p class="text-on-surface-variant text-sm mt-1">Upload a histopathology slide for immediate neural analysis.</p>
+          </div>
+
+          <!-- Drop zone -->
+          <div id="drop-zone" class="bg-surface-container rounded-3xl p-10 border-2 border-dashed border-primary/20 flex flex-col items-center justify-center gap-4 relative group hover:bg-surface-container-high transition-all duration-300 cursor-pointer">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl pointer-events-none"></div>
+            <div class="w-16 h-16 rounded-2xl bg-surface-container-highest flex items-center justify-center text-primary shadow-xl transition-transform group-hover:scale-110 duration-300">
+              <span class="material-symbols-outlined text-3xl">cloud_upload</span>
+            </div>
+            <div class="text-center z-10">
+              <p class="text-base font-bold">Drop clinical imagery here</p>
+              <p class="text-on-surface-variant text-sm mt-1">JPEG, PNG, TIFF supported</p>
+            </div>
+            <button id="browse-btn" class="z-10 px-6 py-2.5 bg-surface-container-highest border border-outline-variant/30 rounded-full text-sm font-bold hover:border-primary/50 hover:text-primary transition-all duration-200">
+              Browse Files
+            </button>
+            <input id="file-input" type="file" accept=".jpg,.jpeg,.png,.tiff,.tif" class="hidden"/>
+            <!-- Preview -->
+            <div id="preview-wrap" class="hidden mt-2 z-10">
+              <img id="preview-img" class="w-28 h-28 rounded-xl object-cover border-2 border-primary ring-4 ring-primary/10" src="" alt="Preview"/>
+            </div>
+          </div>
+
+          <!-- Error banner -->
+          <div id="upload-error" class="hidden bg-error-container/10 border-l-4 border-error px-5 py-3 rounded-xl flex items-center gap-3">
+            <span class="material-symbols-outlined text-error">warning</span>
+            <p id="upload-error-msg" class="text-sm text-error"></p>
+          </div>
+
+          <!-- Action bar -->
+          <div class="flex items-center justify-between bg-surface-container p-5 rounded-3xl">
+            <div>
+              <span class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant block">Active Model</span>
+              <span class="text-sm font-bold">ResNet-18 + SimCLR + Macenko</span>
+            </div>
+            <!-- Grad-CAM toggle -->
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="gradcam-toggle" class="w-4 h-4 accent-primary"/>
+              <span class="text-xs font-semibold text-on-surface-variant">Show Grad-CAM saliency</span>
+            </label>
+            <button id="predict-btn" disabled
+              class="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary-container px-7 py-3 rounded-full font-bold text-sm shadow-[0_6px_20px_rgba(0,200,200,0.3)] hover:shadow-[0_10px_30px_rgba(0,200,200,0.5)] active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
+              <span class="material-symbols-outlined text-base">bolt</span>
+              RUN PREDICTION
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: result card -->
+        <div class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+          <div class="bg-surface-container rounded-[2rem] p-1">
+            <div class="bg-surface-container-low p-7 rounded-[1.8rem] border border-outline-variant/5">
+              <h3 class="text-xs font-bold text-on-surface-variant uppercase tracking-[0.2em] mb-5">Analysis Result</h3>
+
+              <!-- Placeholder state -->
+              <div id="result-placeholder" class="flex flex-col items-center justify-center py-10 gap-3 text-on-surface-variant/40">
+                <span class="material-symbols-outlined text-5xl">image_search</span>
+                <p class="text-sm font-semibold">No image selected</p>
+              </div>
+
+              <!-- Loading state -->
+              <div id="result-loading" class="hidden flex flex-col items-center justify-center py-10 gap-3">
+                <div class="w-10 h-10 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                <p class="text-sm text-on-surface-variant">Analysing…</p>
+              </div>
+
+              <!-- Result state -->
+              <div id="result-data" class="hidden">
+                <div class="flex items-start justify-between mb-6">
+                  <div>
+                    <h2 id="result-class" class="text-3xl font-extrabold">—</h2>
+                    <span id="result-badge" class="mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"></span>
+                  </div>
+                  <div id="result-icon-wrap" class="w-11 h-11 rounded-2xl flex items-center justify-center border">
+                    <span class="material-symbols-outlined text-xl">biotech</span>
+                  </div>
+                </div>
+                <!-- Confidence bar -->
+                <div class="mb-6">
+                  <div class="flex justify-between items-end mb-2">
+                    <span class="text-sm font-semibold text-on-surface-variant">Confidence</span>
+                    <span id="result-confidence" class="text-4xl font-extrabold text-primary tracking-tighter">—</span>
+                  </div>
+                  <div class="h-3 w-full bg-surface-dim rounded-full overflow-hidden p-0.5 border border-outline-variant/10">
+                    <div id="confidence-bar" class="h-full bg-gradient-to-r from-primary-container to-primary rounded-full relative overflow-hidden transition-all duration-700" style="width:0%">
+                      <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.2)_50%,transparent_100%)] w-1/2 shimmer"></div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Grad-CAM heatmap -->
+                <div id="gradcam-wrap" class="hidden">
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-2">Grad-CAM Saliency</span>
+                  <canvas id="gradcam-canvas" width="192" height="192" class="rounded-xl border border-outline-variant/20" style="width:192px;height:192px;image-rendering:pixelated"></canvas>
+                  <p class="text-[10px] text-on-surface-variant/60 mt-1">Red = high attention · Blue = low attention</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         SECTION: TRAINING ANALYTICS
+    ═══════════════════════════════════════ -->
+    <section id="section-analytics" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-2xl font-extrabold tracking-tight">Training Analytics</h2>
+        <p class="text-on-surface-variant text-sm mt-1">SimCLR SSL pre-training metrics from <code class="text-primary text-xs">logs/metrics.json</code></p>
+      </div>
+
+      <!-- No-data banner -->
+      <div id="analytics-nodata" class="hidden bg-surface-container border border-outline-variant/10 rounded-2xl px-6 py-8 flex flex-col items-center gap-3 text-on-surface-variant/60 mb-6">
+        <span class="material-symbols-outlined text-4xl">bar_chart_off</span>
+        <p class="font-semibold">No training data available yet</p>
+        <p class="text-sm">Run <code class="text-primary">python train.py</code> to generate metrics.</p>
+      </div>
+
+      <!-- Stat cards -->
+      <div id="analytics-stats" class="hidden grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Latest Epoch</span>
+          <span id="stat-epoch" class="text-2xl font-extrabold text-primary">—</span>
+        </div>
+        <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Train Loss</span>
+          <span id="stat-train-loss" class="text-2xl font-extrabold">—</span>
+        </div>
+        <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Val Loss</span>
+          <span id="stat-val-loss" class="text-2xl font-extrabold">—</span>
+        </div>
+      </div>
+
+      <!-- Charts grid -->
+      <div id="analytics-charts" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10">
+          <h3 class="font-headline font-bold text-base mb-1">Model Loss</h3>
+          <p class="text-xs text-on-surface-variant uppercase tracking-widest mb-4">Train vs Validation</p>
+          <canvas id="chart-loss" height="200"></canvas>
+        </div>
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10">
+          <h3 class="font-headline font-bold text-base mb-1">Accuracy</h3>
+          <p class="text-xs text-on-surface-variant uppercase tracking-widest mb-4">Train vs Validation</p>
+          <canvas id="chart-acc" height="200"></canvas>
+        </div>
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 lg:col-span-2">
+          <h3 class="font-headline font-bold text-base mb-1">Time per Epoch</h3>
+          <p class="text-xs text-on-surface-variant uppercase tracking-widest mb-4">Seconds</p>
+          <canvas id="chart-time" height="120"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         SECTION: MODEL COMPARISON
+    ═══════════════════════════════════════ -->
+    <section id="section-comparison" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-2xl font-extrabold tracking-tight">Model Comparison</h2>
+        <p class="text-on-surface-variant text-sm mt-1">Accuracy benchmarks from <code class="text-primary text-xs">logs/comparison.json</code></p>
+        <p class="text-on-surface-variant/70 text-xs mt-2">
+          <span class="text-tertiary font-semibold">Note:</span> ResNet18, ResNet50, EfficientNet-B0, and MobileNetV3 are pre-trained on ImageNet (1.2M images, supervised). SimCLR is trained from scratch on PCam only (no external data).
+        </p>
+      </div>
+
+      <!-- In-progress banner -->
+      <div id="comparison-inprogress" class="hidden bg-primary/5 border border-primary/20 rounded-2xl px-6 py-4 flex items-center gap-4 mb-6">
+        <div class="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin flex-shrink-0"></div>
+        <p class="text-sm font-semibold text-primary">In Progress — baseline training running</p>
+      </div>
+
+      <!-- No-data banner -->
+      <div id="comparison-nodata" class="hidden bg-surface-container border border-outline-variant/10 rounded-2xl px-6 py-8 flex flex-col items-center gap-3 text-on-surface-variant/60 mb-6">
+        <span class="material-symbols-outlined text-4xl">compare_arrows</span>
+        <p class="font-semibold">No comparison data available yet</p>
+      </div>
+
+      <div id="comparison-content" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 lg:col-span-2">
+          <h3 class="font-headline font-bold text-base mb-1">Accuracy Comparison</h3>
+          <p class="text-xs text-on-surface-variant uppercase tracking-widest mb-4">% Accuracy</p>
+          <canvas id="chart-comparison" height="140"></canvas>
+        </div>
+
+        <!-- Summary table -->
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10 lg:col-span-2 overflow-x-auto">
+          <h3 class="font-headline font-bold text-base mb-4">Summary</h3>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-on-surface-variant text-xs uppercase tracking-widest border-b border-outline-variant/20">
+                <th class="text-left pb-3 font-bold">Model</th>
+                <th class="text-left pb-3 font-bold">Technique</th>
+                <th class="text-right pb-3 font-bold">Accuracy</th>
+                <th class="text-right pb-3 font-bold">Time</th>
+                <th class="text-right pb-3 font-bold">Epochs</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-table-body" class="divide-y divide-outline-variant/10">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         SECTION: TEST RESULTS
+    ═══════════════════════════════════════ -->
+    <section id="section-test" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-2xl font-extrabold tracking-tight">Test Results</h2>
+        <p class="text-on-surface-variant text-sm mt-1">Final held-out evaluation. Enter results manually after running <code class="text-primary text-xs">python evaluate.py</code></p>
+      </div>
+
+      <div class="max-w-lg">
+        <!-- Read-only card -->
+        <div id="test-readonly" class="bg-surface-container rounded-3xl p-7 border border-outline-variant/10">
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-surface-container-high rounded-2xl p-4 text-center">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Accuracy</span>
+              <span id="test-disp-acc" class="text-2xl font-extrabold text-primary">—</span>
+            </div>
+            <div class="bg-surface-container-high rounded-2xl p-4 text-center">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Loss</span>
+              <span id="test-disp-loss" class="text-2xl font-extrabold">—</span>
+            </div>
+            <div class="bg-surface-container-high rounded-2xl p-4 text-center">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Inf. Time</span>
+              <span id="test-disp-time" class="text-2xl font-extrabold">—</span>
+            </div>
+          </div>
+          <button id="test-edit-btn" class="w-full py-2.5 rounded-full border border-outline-variant/30 text-sm font-bold hover:border-primary/50 hover:text-primary transition-all duration-200">
+            Edit Results
+          </button>
+        </div>
+
+        <!-- Edit form -->
+        <div id="test-edit" class="hidden bg-surface-container rounded-3xl p-7 border border-outline-variant/10">
+          <h3 class="font-headline font-bold mb-5">Enter Test Results</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Accuracy (0 – 1)</label>
+              <input id="test-input-acc" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.8712"
+                class="w-full bg-surface-container-high border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:border-primary focus:ring-0 focus:outline-none transition-colors"/>
+              <p id="test-acc-error" class="hidden text-xs text-error mt-1">Must be a number between 0 and 1.</p>
+            </div>
+            <div>
+              <label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Loss</label>
+              <input id="test-input-loss" type="number" step="0.0001" min="0" placeholder="e.g. 0.3241"
+                class="w-full bg-surface-container-high border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:border-primary focus:ring-0 focus:outline-none transition-colors"/>
+            </div>
+            <div>
+              <label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Inference Time (ms)</label>
+              <input id="test-input-time" type="number" step="1" min="0" placeholder="e.g. 124"
+                class="w-full bg-surface-container-high border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm focus:border-primary focus:ring-0 focus:outline-none transition-colors"/>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button id="test-save-btn" class="flex-1 py-2.5 bg-gradient-to-r from-primary to-primary-container text-on-primary-container rounded-full font-bold text-sm hover:shadow-[0_6px_20px_rgba(0,200,200,0.3)] transition-all duration-200">
+              Save
+            </button>
+            <button id="test-cancel-btn" class="flex-1 py-2.5 border border-outline-variant/30 rounded-full font-bold text-sm hover:border-primary/50 hover:text-primary transition-all duration-200">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         SECTION: ABOUT
+    ═══════════════════════════════════════ -->
+    <section id="section-about" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-2xl font-extrabold tracking-tight">About</h2>
+        <p class="text-on-surface-variant text-sm mt-1">Project metadata, hardware configuration, and training graphs.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mb-8">
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10">
+          <h3 class="font-headline font-bold text-base mb-4 text-primary">Project</h3>
+          <dl class="space-y-3 text-sm">
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Name</dt><dd class="font-semibold mt-0.5">HistoSight</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Task</dt><dd class="font-semibold mt-0.5">Binary Classification — Tumor vs Normal</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Dataset</dt><dd class="mt-0.5"><a href="https://github.com/basveeling/pcam" target="_blank" class="text-primary hover:underline underline-offset-2">PatchCamelyon (PCam)</a></dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Architecture</dt><dd class="font-semibold mt-0.5">ResNet-18 + SimCLR + Macenko</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">SSL Method</dt><dd class="mt-0.5"><a href="https://arxiv.org/abs/2002.05709" target="_blank" class="text-primary hover:underline underline-offset-2">SimCLR (Chen et al., 2020)</a></dd></div>
+          </dl>
+        </div>
+        <div class="bg-surface-container rounded-3xl p-6 border border-outline-variant/10">
+          <h3 class="font-headline font-bold text-base mb-4 text-primary">Stack &amp; Hardware</h3>
+          <dl class="space-y-3 text-sm">
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">GPU</dt><dd class="font-semibold mt-0.5">RTX 4050 Laptop GPU · 6 GB VRAM</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">CPU</dt><dd class="font-semibold mt-0.5">AMD Ryzen 7 7735HS</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Environment</dt><dd class="font-semibold mt-0.5">Python 3.12 · CUDA · Windows</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Frameworks</dt><dd class="font-semibold mt-0.5">PyTorch ≥ 2.0 · torchstain ≥ 1.3 · FastAPI ≥ 0.110</dd></div>
+            <div><dt class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Frontend</dt><dd class="font-semibold mt-0.5">Vanilla JS · Tailwind CDN · Chart.js 4</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Real graphs from training data -->
+      <div class="mt-4">
+        <h3 class="font-headline font-bold text-base mb-4 text-primary">Training Graphs (from real data)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Loss Curve</p>
+            <img src="http://localhost:8000/graphs/loss_curve.png" alt="Loss Curve" class="w-full rounded-xl"/>
+          </div>
+          <div class="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Contrastive Accuracy</p>
+            <img src="http://localhost:8000/graphs/accuracy_curve.png" alt="Accuracy Curve" class="w-full rounded-xl"/>
+          </div>
+          <div class="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Epoch Time</p>
+            <img src="http://localhost:8000/graphs/epoch_time.png" alt="Epoch Time" class="w-full rounded-xl"/>
+          </div>
+          <div class="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Model Comparison</p>
+            <img src="http://localhost:8000/graphs/model_comparison.png" alt="Model Comparison" class="w-full rounded-xl"/>
+          </div>
+          <div class="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 md:col-span-2">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">System Architecture</p>
+            <img src="http://localhost:8000/graphs/system_architecture.png" alt="System Architecture" class="w-full rounded-xl"/>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /flex-1 p-8 -->
+</main>
+
+<!-- Toast notification -->
+<div id="toast" class="fixed bottom-6 right-6 z-[100] opacity-0 pointer-events-none">
+  <div class="bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-2xl">
+    <span class="material-symbols-outlined text-tertiary text-base">warning</span>
+    <p id="toast-msg" class="text-sm font-semibold"></p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const API = 'http://localhost:8000';
+
+// ═══════════════════════════════════════════════════════════
+// CHART INSTANCES (module-level, created once)
+// ═══════════════════════════════════════════════════════════
+let lossChart    = null;
+let accChart     = null;
+let timeChart    = null;
+let compChart    = null;
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  animation: { duration: 400 },
+  plugins: { legend: { labels: { color: '#bac9c9', font: { family: 'Inter', size: 11 } } } },
+  scales: {
+    x: { ticks: { color: '#bac9c9', font: { size: 10 } }, grid: { color: 'rgba(60,73,73,0.4)' } },
+    y: { ticks: { color: '#bac9c9', font: { size: 10 } }, grid: { color: 'rgba(60,73,73,0.4)' } },
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function navigate(name) {
+  // Hide all sections
+  document.querySelectorAll('section[id^="section-"]').forEach(s => s.classList.add('hidden'));
+  // Deactivate all nav links
+  document.querySelectorAll('.nav-link').forEach(a => {
+    a.classList.remove('nav-active', 'bg-primary/10', 'text-primary', 'shadow-[0_0_15px_rgba(69,228,228,0.15)]');
+    a.classList.add('text-on-surface-variant');
+  });
+  // Show target section
+  const section = document.getElementById(`section-${name}`);
+  if (section) section.classList.remove('hidden');
+  // Activate nav link
+  const link = document.querySelector(`[data-section="${name}"]`);
+  if (link) {
+    link.classList.add('nav-active', 'bg-primary/10', 'text-primary', 'shadow-[0_0_15px_rgba(69,228,228,0.15)]');
+    link.classList.remove('text-on-surface-variant');
+  }
+  // Fetch data on section activation
+  if (name === 'analytics')  fetchMetrics();
+  if (name === 'comparison') fetchComparison();
+  if (name === 'test')       loadTestResults();
+  // Close sidebar on mobile
+  closeSidebar();
+}
+
+// Wire up nav links
+document.querySelectorAll('.nav-link').forEach(a => {
+  a.addEventListener('click', () => navigate(a.dataset.section));
+});
+
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR (MOBILE)
+// ═══════════════════════════════════════════════════════════
+function closeSidebar() {
+  if (window.innerWidth < 768) {
+    document.getElementById('sidebar').classList.add('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
+  }
+}
+document.getElementById('hamburger').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('-translate-x-full');
+  document.getElementById('sidebar-overlay').classList.toggle('hidden');
+});
+// Init sidebar state
+if (window.innerWidth < 768) {
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+function showToast(msg, duration = 4000) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  toast.classList.remove('opacity-0', 'pointer-events-none');
+  toast.classList.add('opacity-100');
+  setTimeout(() => {
+    toast.classList.remove('opacity-100');
+    toast.classList.add('opacity-0', 'pointer-events-none');
+  }, duration);
+}
+
+// ═══════════════════════════════════════════════════════════
+// UPLOAD & PREDICT
+// ═══════════════════════════════════════════════════════════
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const browseBtn  = document.getElementById('browse-btn');
+const predictBtn = document.getElementById('predict-btn');
+const previewWrap = document.getElementById('preview-wrap');
+const previewImg  = document.getElementById('preview-img');
+let selectedFile  = null;
+
+browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) setFile(fileInput.files[0]);
+});
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-primary/60'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('border-primary/60'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('border-primary/60');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewImg.src = e.target.result;
+    previewWrap.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+  predictBtn.disabled = false;
+  hideUploadError();
+  showResultPlaceholder();
+}
+
+function hideUploadError() {
+  document.getElementById('upload-error').classList.add('hidden');
+}
+function showUploadError(msg) {
+  document.getElementById('upload-error-msg').textContent = msg;
+  document.getElementById('upload-error').classList.remove('hidden');
+}
+function showResultPlaceholder() {
+  document.getElementById('result-placeholder').classList.remove('hidden');
+  document.getElementById('result-loading').classList.add('hidden');
+  document.getElementById('result-data').classList.add('hidden');
+}
+
+predictBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  hideUploadError();
+  document.getElementById('result-placeholder').classList.add('hidden');
+  document.getElementById('result-loading').classList.remove('hidden');
+  document.getElementById('result-data').classList.add('hidden');
+  document.getElementById('gradcam-wrap').classList.add('hidden');
+  predictBtn.disabled = true;
+
+  const useGradcam = document.getElementById('gradcam-toggle').checked;
+  const endpoint   = useGradcam ? `${API}/gradcam` : `${API}/predict`;
+
+  try {
+    const form = new FormData();
+    form.append('file', selectedFile);
+    const res = await fetch(endpoint, { method: 'POST', body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    const data = await res.json();
+    renderPrediction(data);
+    if (useGradcam && data.saliency_map) renderGradcam(data.saliency_map);
+  } catch (e) {
+    showUploadError(e.message);
+    showResultPlaceholder();
+  } finally {
+    predictBtn.disabled = false;
+  }
+});
+
+function renderPrediction(data) {
+  const isTumor = data.class === 'Tumor';
+  const pct     = (data.confidence * 100).toFixed(1);
+
+  document.getElementById('result-loading').classList.add('hidden');
+  document.getElementById('result-data').classList.remove('hidden');
+  document.getElementById('result-placeholder').classList.add('hidden');
+
+  document.getElementById('result-class').textContent = isTumor ? 'Malignant' : 'Benign';
+
+  const badge = document.getElementById('result-badge');
+  badge.textContent = data.class;
+  badge.className = isTumor
+    ? 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-error-container text-on-error-container'
+    : 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary';
+
+  const iconWrap = document.getElementById('result-icon-wrap');
+  iconWrap.className = isTumor
+    ? 'w-11 h-11 rounded-2xl flex items-center justify-center border bg-error-container/10 border-error/20 text-error'
+    : 'w-11 h-11 rounded-2xl flex items-center justify-center border bg-primary/10 border-primary/20 text-primary';
+
+  document.getElementById('result-confidence').textContent = `${pct}%`;
+  document.getElementById('confidence-bar').style.width = `${pct}%`;
+}
+
+function renderGradcam(saliencyMap) {
+  const canvas = document.getElementById('gradcam-canvas');
+  const ctx    = canvas.getContext('2d');
+  const H = saliencyMap.length;
+  const W = saliencyMap[0].length;
+  canvas.width  = W;
+  canvas.height = H;
+  const imgData = ctx.createImageData(W, H);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const v   = saliencyMap[y][x];          // 0–1
+      const idx = (y * W + x) * 4;
+      // Jet colormap: blue→cyan→green→yellow→red
+      let r, g, b;
+      if (v < 0.25)      { r = 0;                    g = Math.round(v * 4 * 255);       b = 255; }
+      else if (v < 0.5)  { r = 0;                    g = 255;                            b = Math.round((1 - (v - 0.25) * 4) * 255); }
+      else if (v < 0.75) { r = Math.round((v - 0.5) * 4 * 255); g = 255;               b = 0; }
+      else               { r = 255;                  g = Math.round((1 - (v - 0.75) * 4) * 255); b = 0; }
+      imgData.data[idx]     = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = Math.round(180 + v * 75);  // alpha: more opaque where hot
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+  document.getElementById('gradcam-wrap').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANALYTICS CHARTS
+// ═══════════════════════════════════════════════════════════
+async function fetchMetrics() {
+  try {
+    const res = await fetch(`${API}/metrics`);
+    if (!res.ok) throw new Error('not found');
+    const d = await res.json();
+    if (!d.epoch || d.epoch.length === 0) throw new Error('empty');
+    // Cache in localStorage so we can show it even when backend is down
+    localStorage.setItem('histosight_metrics_cache', JSON.stringify(d));
+    renderAnalytics(d);
+  } catch {
+    // Try localStorage cache first
+    const cached = localStorage.getItem('histosight_metrics_cache');
+    if (cached) {
+      try {
+        const d = JSON.parse(cached);
+        if (d.epoch && d.epoch.length > 0) {
+          renderAnalytics(d);
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+    document.getElementById('analytics-nodata').classList.remove('hidden');
+    document.getElementById('analytics-stats').classList.add('hidden');
+    document.getElementById('analytics-charts').classList.add('hidden');
+  }
+}
+
+function renderAnalytics(d) {
+  document.getElementById('analytics-nodata').classList.add('hidden');
+  document.getElementById('analytics-stats').classList.remove('hidden');
+  document.getElementById('analytics-charts').classList.remove('hidden');
+
+  const last = d.epoch.length - 1;
+  document.getElementById('stat-epoch').textContent      = d.epoch[last];
+  document.getElementById('stat-train-loss').textContent = d.train_loss[last].toFixed(4);
+  document.getElementById('stat-val-loss').textContent   = d.val_loss[last].toFixed(4);
+
+  const epochs = d.epoch;
+
+  // Loss chart
+  if (lossChart) {
+    lossChart.data.labels = epochs;
+    lossChart.data.datasets[0].data = d.train_loss;
+    lossChart.data.datasets[1].data = d.val_loss;
+    lossChart.update();
+  } else {
+    lossChart = new Chart(document.getElementById('chart-loss'), {
+      type: 'line',
+      data: {
+        labels: epochs,
+        datasets: [
+          { label: 'Train Loss', data: d.train_loss, borderColor: '#45e4e4', backgroundColor: 'rgba(69,228,228,0.08)', tension: 0.3, pointRadius: 2 },
+          { label: 'Val Loss',   data: d.val_loss,   borderColor: '#ffc29d', backgroundColor: 'rgba(255,194,157,0.08)', borderDash: [4,3], tension: 0.3, pointRadius: 2 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS }
+    });
+  }
+
+  // Accuracy chart
+  if (accChart) {
+    accChart.data.labels = epochs;
+    accChart.data.datasets[0].data = d.train_accuracy;
+    accChart.data.datasets[1].data = d.val_accuracy;
+    accChart.update();
+  } else {
+    accChart = new Chart(document.getElementById('chart-acc'), {
+      type: 'line',
+      data: {
+        labels: epochs,
+        datasets: [
+          { label: 'Train Acc', data: d.train_accuracy, borderColor: '#45e4e4', backgroundColor: 'rgba(69,228,228,0.08)', tension: 0.3, pointRadius: 2 },
+          { label: 'Val Acc',   data: d.val_accuracy,   borderColor: '#ffc29d', backgroundColor: 'rgba(255,194,157,0.08)', borderDash: [4,3], tension: 0.3, pointRadius: 2 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS }
+    });
+  }
+
+  // Time chart
+  if (timeChart) {
+    timeChart.data.labels = epochs;
+    timeChart.data.datasets[0].data = d.epoch_time;
+    timeChart.update();
+  } else {
+    timeChart = new Chart(document.getElementById('chart-time'), {
+      type: 'line',
+      data: {
+        labels: epochs,
+        datasets: [
+          { label: 'Epoch Time (s)', data: d.epoch_time, borderColor: '#c3c5dc', backgroundColor: 'rgba(195,197,220,0.08)', tension: 0.3, pointRadius: 2 },
+        ]
+      },
+      options: { ...CHART_DEFAULTS }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMPARISON CHART
+// ═══════════════════════════════════════════════════════════
+async function fetchComparison() {
+  try {
+    const res = await fetch(`${API}/comparison`);
+    if (!res.ok) throw new Error('not found');
+    const d = await res.json();
+    localStorage.setItem('histosight_comparison_cache', JSON.stringify(d));
+    renderComparison(d);
+  } catch {
+    // Try localStorage cache
+    const cached = localStorage.getItem('histosight_comparison_cache');
+    if (cached) {
+      try { renderComparison(JSON.parse(cached)); return; } catch { /* ignore */ }
+    }
+    document.getElementById('comparison-nodata').classList.remove('hidden');
+    document.getElementById('comparison-inprogress').classList.add('hidden');
+    document.getElementById('comparison-content').classList.add('hidden');
+  }
+}
+
+function renderComparison(d) {
+  document.getElementById('comparison-nodata').classList.add('hidden');
+
+  // Build ordered model list — pretrained baselines first, then our models
+  const ORDER = [
+    'resnet18_pretrained', 'resnet50_pretrained',
+    'efficientnet_b0', 'mobilenet_v3_small',
+    'simclr_ssl', 'final_model'
+  ];
+
+  // Fallback display names
+  const NAMES = {
+    resnet18_pretrained: 'ResNet18 (ImageNet)',
+    resnet50_pretrained: 'ResNet50 (ImageNet)',
+    efficientnet_b0:     'EfficientNet-B0',
+    mobilenet_v3_small:  'MobileNetV3-Small',
+    simclr_ssl:          'SimCLR SSL (ours)',
+    final_model:         'SimCLR + Linear Probe',
+  };
+
+  const COLORS = [
+    'rgba(69,228,228,0.75)',   // teal
+    'rgba(69,228,228,0.45)',
+    'rgba(255,194,157,0.75)',  // orange
+    'rgba(255,194,157,0.45)',
+    'rgba(195,197,220,0.75)',  // lavender
+    'rgba(100,200,120,0.75)',  // green — our final model
+  ];
+  const BORDERS = [
+    '#45e4e4','#45e4e4','#ffc29d','#ffc29d','#c3c5dc','#64c878'
+  ];
+
+  // Collect entries in order, include any extra keys not in ORDER
+  const keys = [...ORDER, ...Object.keys(d).filter(k => !ORDER.includes(k))];
+  const rows = keys
+    .filter(k => d[k] && typeof d[k].accuracy === 'number')
+    .map((k, i) => ({
+      key: k,
+      name: d[k].display_name || NAMES[k] || k,
+      technique: d[k].technique || '',
+      accuracy: d[k].accuracy,
+      training_time: d[k].training_time || 0,
+      epochs: d[k].epochs || 0,
+      color: COLORS[i % COLORS.length],
+      border: BORDERS[i % BORDERS.length],
+    }));
+
+  const allZero = rows.every(r => r.accuracy === 0);
+  document.getElementById('comparison-inprogress').classList.toggle('hidden', !allZero);
+  document.getElementById('comparison-content').classList.remove('hidden');
+
+  const labels  = rows.map(r => r.name);
+  const accData = rows.map(r => r.accuracy * 100);
+
+  if (compChart) {
+    compChart.data.labels = labels;
+    compChart.data.datasets[0].data            = accData;
+    compChart.data.datasets[0].backgroundColor = rows.map(r => r.color);
+    compChart.data.datasets[0].borderColor     = rows.map(r => r.border);
+    compChart.update();
+  } else {
+    compChart = new Chart(document.getElementById('chart-comparison'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Accuracy (%)',
+          data: accData,
+          backgroundColor: rows.map(r => r.color),
+          borderColor:     rows.map(r => r.border),
+          borderWidth: 1,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        ...CHART_DEFAULTS,
+        indexAxis: 'y',   // horizontal bars — easier to read with many models
+        scales: {
+          x: { ...CHART_DEFAULTS.scales.x, min: 0, max: 100,
+               ticks: { ...CHART_DEFAULTS.scales.x.ticks, callback: v => v + '%' } },
+          y: { ...CHART_DEFAULTS.scales.y }
+        }
+      }
+    });
+  }
+
+  // Summary table
+  const tbody = document.getElementById('comparison-table-body');
+  tbody.innerHTML = rows.map(r => `
+    <tr class="text-sm">
+      <td class="py-3 font-semibold">${r.name}</td>
+      <td class="py-3 text-xs text-on-surface-variant">${r.technique}</td>
+      <td class="py-3 text-right font-bold" style="color:${r.border}">${r.accuracy > 0 ? (r.accuracy*100).toFixed(2)+'%' : '—'}</td>
+      <td class="py-3 text-right">${r.training_time > 0 ? r.training_time.toFixed(0)+'s' : '—'}</td>
+      <td class="py-3 text-right">${r.epochs > 0 ? r.epochs : '—'}</td>
+    </tr>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TEST RESULTS (localStorage)
+// ═══════════════════════════════════════════════════════════
+const LS_KEY = 'histosight_test_results';
+
+function loadTestResults() {
+  const raw = localStorage.getItem(LS_KEY);
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    document.getElementById('test-disp-acc').textContent  = d.accuracy  != null ? (d.accuracy * 100).toFixed(2) + '%' : '—';
+    document.getElementById('test-disp-loss').textContent = d.loss       != null ? d.loss.toFixed(4)              : '—';
+    document.getElementById('test-disp-time').textContent = d.inference_time != null ? d.inference_time + 'ms'   : '—';
+  } catch { /* ignore */ }
+}
+
+document.getElementById('test-edit-btn').addEventListener('click', () => {
+  document.getElementById('test-readonly').classList.add('hidden');
+  document.getElementById('test-edit').classList.remove('hidden');
+  // Pre-fill from localStorage
+  const raw = localStorage.getItem(LS_KEY);
+  if (raw) {
+    try {
+      const d = JSON.parse(raw);
+      document.getElementById('test-input-acc').value  = d.accuracy       ?? '';
+      document.getElementById('test-input-loss').value = d.loss           ?? '';
+      document.getElementById('test-input-time').value = d.inference_time ?? '';
+    } catch { /* ignore */ }
+  }
+});
+
+document.getElementById('test-cancel-btn').addEventListener('click', () => {
+  document.getElementById('test-edit').classList.add('hidden');
+  document.getElementById('test-readonly').classList.remove('hidden');
+  document.getElementById('test-acc-error').classList.add('hidden');
+});
+
+document.getElementById('test-save-btn').addEventListener('click', () => {
+  const accVal  = parseFloat(document.getElementById('test-input-acc').value);
+  const lossVal = parseFloat(document.getElementById('test-input-loss').value);
+  const timeVal = parseFloat(document.getElementById('test-input-time').value);
+
+  // Validate accuracy
+  if (isNaN(accVal) || accVal < 0 || accVal > 1) {
+    document.getElementById('test-acc-error').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('test-acc-error').classList.add('hidden');
+
+  const payload = {
+    accuracy:       accVal,
+    loss:           isNaN(lossVal) ? null : lossVal,
+    inference_time: isNaN(timeVal) ? null : timeVal,
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(payload));
+  loadTestResults();
+  document.getElementById('test-edit').classList.add('hidden');
+  document.getElementById('test-readonly').classList.remove('hidden');
+});
+
+// ═══════════════════════════════════════════════════════════
+// POLLING (30s)
+// ═══════════════════════════════════════════════════════════
+let pollingTimer = null;
+
+async function pollAll() {
+  try {
+    const [mRes, cRes, sRes] = await Promise.all([
+      fetch(`${API}/metrics`).catch(() => null),
+      fetch(`${API}/comparison`).catch(() => null),
+      fetch(`${API}/train_baseline/status`).catch(() => null),
+    ]);
+
+    if (mRes && mRes.ok) {
+      const d = await mRes.json();
+      if (d.epoch && d.epoch.length > 0) {
+        renderAnalytics(d);
+        // Update stat cards even if not on analytics section
+        const last = d.epoch.length - 1;
+        document.getElementById('stat-epoch').textContent      = d.epoch[last];
+        document.getElementById('stat-train-loss').textContent = d.train_loss[last].toFixed(4);
+        document.getElementById('stat-val-loss').textContent   = d.val_loss[last].toFixed(4);
+      }
+    }
+
+    if (cRes && cRes.ok) {
+      const d = await cRes.json();
+      renderComparison(d);
+    }
+
+    if (sRes && sRes.ok) {
+      const s = await sRes.json();
+      document.getElementById('status-badge').textContent =
+        s.status === 'running' ? 'Training' : s.status === 'done' ? 'Done' : 'Idle';
+      if (s.status === 'done' && pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+      }
+    }
+  } catch (e) {
+    console.error('[poll] error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DOM CONTENT LOADED — bootstrap
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Default section
+  navigate('upload');
+
+  // Immediately load all chart data from stored JSON — no training needed
+  fetchMetrics();
+  fetchComparison();
+  loadTestResults();
+
+  // Auto-trigger baseline training (silent if already done)
+  fetch(`${API}/train_baseline`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => console.log('[train_baseline]', d.status))
+    .catch(e => {
+      console.warn('[train_baseline] unavailable:', e.message);
+      showToast('Backend not running — charts loaded from cached JSON.');
+    });
+
+  // Start polling every 30s to pick up new epochs if training is running
+  pollingTimer = setInterval(pollAll, 30_000);
+});
+</script>
+</body>
+</html>
