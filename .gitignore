@@ -53,3 +53,10 @@ logs/
 
 # Data files
 *.h5
+*.h5.gz
+*.pth
+*.pt
+checkpoints/
+models/
+pcamv1/
+pcam_test_100_per_class/
