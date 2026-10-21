@@ -27,9 +27,10 @@ CKPT_DIR        = os.path.join(BASE_DIR, "checkpoints")
 MODELS_DIR      = os.path.join(BASE_DIR, "models")
 BEST_SIMCLR     = os.path.join(CKPT_DIR, "best_simclr.pth")
 BEST_CLASSIFIER = os.path.join(MODELS_DIR, "best_classifier.pth")
+BEST_ENCODER    = os.path.join(MODELS_DIR, "best_encoder.pth")
 
-DEVICE    = "cuda" if torch.cuda.is_available() else "cpu"
-CLASS_MAP = {0: "Normal", 1: "Tumor"}
+DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
+CLASS_MAP  = {0: "Normal", 1: "Tumor"}
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
 
@@ -55,26 +56,44 @@ def _load_models():
     if _encoder is not None and _classifier is not None:
         return _encoder, _classifier
 
-    for p, name in [(BEST_SIMCLR, "SimCLR checkpoint"), (BEST_CLASSIFIER, "Classifier")]:
-        if not os.path.exists(p):
-            raise FileNotFoundError(
-                f"{name} not found at {p}. "
-                "Run train.py then fine_tune.py to generate checkpoints."
-            )
+    # Check existence of classifier
+    if not os.path.exists(BEST_CLASSIFIER):
+        raise FileNotFoundError(
+            f"Classifier checkpoint not found at {BEST_CLASSIFIER}. "
+            "Run fine_tune.py to generate it."
+        )
 
     # Encoder
     backbone = models.resnet18(weights=None)
     backbone.fc = nn.Identity()
     encoder = backbone.to(DEVICE)
 
-    simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE)
-    model_state = simclr_ckpt.get('model_state', simclr_ckpt.get('model', None))
-    encoder_state = {
-        k.replace("encoder.", ""): v
-        for k, v in model_state.items()
-        if k.startswith("encoder.")
-    }
-    encoder.load_state_dict(encoder_state, strict=True)
+    # Load either fine-tuned encoder or pre-trained SimCLR encoder
+    if os.path.exists(BEST_ENCODER):
+        print(f"[INFO] Loading fine-tuned encoder checkpoint from {BEST_ENCODER}")
+        encoder_ckpt = torch.load(BEST_ENCODER, map_location=DEVICE)
+        model_state = encoder_ckpt.get('model_state', encoder_ckpt.get('model', encoder_ckpt))
+        encoder_state = {
+            k.replace("encoder.", ""): v
+            for k, v in model_state.items()
+        }
+        encoder.load_state_dict(encoder_state, strict=True)
+    elif os.path.exists(BEST_SIMCLR):
+        print(f"[INFO] Loading pre-trained SimCLR encoder from {BEST_SIMCLR}")
+        simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE)
+        model_state = simclr_ckpt.get('model_state', simclr_ckpt.get('model', None))
+        encoder_state = {
+            k.replace("encoder.", ""): v
+            for k, v in model_state.items()
+            if k.startswith("encoder.")
+        }
+        encoder.load_state_dict(encoder_state, strict=True)
+    else:
+        raise FileNotFoundError(
+            f"Neither fine-tuned encoder ({BEST_ENCODER}) nor pre-trained SimCLR checkpoint ({BEST_SIMCLR}) was found. "
+            "Run train.py or fine_tune.py first."
+        )
+
     encoder.eval()
 
     # Classifier
@@ -117,6 +136,8 @@ def predict_single(image_path: str) -> dict:
         {"class": "Tumor"|"Normal", "confidence": float}
     """
     img = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img = stain_norm.normalize_image(img)
     tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
     class_name, confidence = _predict_tensor(tensor)
     return {"class": class_name, "confidence": round(confidence, 4)}
@@ -168,6 +189,8 @@ def predict_batch(folder_path: str) -> dict:
         fpath = os.path.join(folder_path, fname)
         try:
             img    = Image.open(fpath).convert("RGB")
+            import stain_norm
+            img    = stain_norm.normalize_image(img)
             tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
 
             with torch.no_grad():
@@ -271,6 +294,8 @@ def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict
 
     try:
         img    = Image.open(image_path).convert("RGB")
+        import stain_norm
+        img    = stain_norm.normalize_image(img)
         tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
 
         # Forward

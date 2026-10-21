@@ -32,7 +32,7 @@ BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR         = os.path.join(BASE_DIR, "logs")
 METRICS_PATH    = os.path.join(LOG_DIR, "metrics.json")
 COMPARISON_PATH = os.path.join(LOG_DIR, "comparison.json")
-BASELINE_SCRIPT = os.path.join(BASE_DIR, "train_supervised_baseline.py")
+BASELINE_SCRIPT = os.path.join(BASE_DIR, "compare_baselines.py")
 
 # ======================
 # BASELINE SUBPROCESS STATE
@@ -48,6 +48,16 @@ app = FastAPI(
     description="Histopathology (PCam) tumor/normal classification API",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+def startup_event():
+    print("[BACKEND] Initializing and fitting Macenko normalizer...")
+    try:
+        import stain_norm
+        stain_norm.get_normalizer()
+        print("[BACKEND] Macenko normalizer successfully loaded.")
+    except Exception as e:
+        print(f"[BACKEND] Warning: Failed to load Macenko normalizer: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -138,7 +148,6 @@ async def predict(file: UploadFile = File(...)):
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-
 @app.post("/batch_predict", summary="Predict all images in a server-side folder")
 def batch_predict(request: BatchPredictRequest):
     """
@@ -186,6 +195,83 @@ async def gradcam(file: UploadFile = File(...)):
             tmp_path = tmp.name
         result = inference.generate_gradcam(tmp_path)
         return JSONResponse(result)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'tmp_path' in locals() and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/explain", summary="Generate explanation saliency map for an uploaded image using a specified method")
+async def explain(file: UploadFile = File(...), method: str = "gradcam"):
+    """
+    Upload an image and receive a saliency heatmap alongside the prediction using the specified XAI technique.
+
+    - **file**: Image file
+    - **method**: Explainability technique ("gradcam", "saliency", "smoothgrad", "occlusion", "lime", "shap")
+
+    Returns:
+    - **class**: "Tumor" or "Normal"
+    - **confidence**: float 0–1
+    - **saliency_map**: 96×96 nested list of floats (0=cold, 1=hot)
+    """
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+    
+    method = method.lower()
+    if method not in {"gradcam", "saliency", "smoothgrad", "occlusion", "lime", "shap"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported explainability method: {method}")
+
+    try:
+        import explainability
+        import torch
+        from PIL import Image
+        import stain_norm
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            tmp_path = tmp.name
+        
+        # Load models to get prediction confidence
+        encoder, classifier = inference._load_models()
+        img = Image.open(tmp_path).convert("RGB")
+        img = stain_norm.normalize_image(img)
+        tensor = inference.inference_transform(img).unsqueeze(0).to(inference.DEVICE)
+        
+        with torch.no_grad():
+            feats = encoder(tensor)
+            logits = classifier(feats)
+            probs = torch.softmax(logits, dim=1)
+            pred_idx = probs.argmax(dim=1).item()
+            confidence = probs[0, pred_idx].item()
+            pred_class = inference.CLASS_MAP[pred_idx]
+
+        # Generate heatmap using explainability module
+        if method == "gradcam":
+            heatmap, _ = explainability.gradcam(tmp_path)
+        elif method == "saliency":
+            heatmap, _ = explainability.saliency(tmp_path)
+        elif method == "smoothgrad":
+            heatmap, _ = explainability.smoothgrad(tmp_path)
+        elif method == "occlusion":
+            heatmap, _ = explainability.occlusion(tmp_path)
+        elif method == "lime":
+            heatmap, _ = explainability.lime_explain(tmp_path)
+        elif method == "shap":
+            heatmap, _ = explainability.shap_explain(tmp_path)
+        
+        if heatmap is None:
+            raise ValueError(f"Heatmap generation failed for method: {method}")
+            
+        return JSONResponse({
+            "class": pred_class,
+            "confidence": round(confidence, 4),
+            "saliency_map": heatmap.tolist(),
+        })
+
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -251,12 +337,12 @@ def get_comparison():
 # ======================
 
 def _read_resnet_supervised() -> dict:
-    """Read resnet_supervised entry from comparison.json, return zeros if missing."""
+    """Read resnet18_pretrained entry from comparison.json, return zeros if missing."""
     try:
         if os.path.exists(COMPARISON_PATH):
             with open(COMPARISON_PATH, 'r') as f:
                 data = json.load(f)
-            return data.get("resnet_supervised", {"accuracy": 0.0, "training_time": 0, "epochs": 0})
+            return data.get("resnet18_pretrained", {"accuracy": 0.0, "training_time": 0, "epochs": 0})
     except Exception:
         pass
     return {"accuracy": 0.0, "training_time": 0, "epochs": 0}
@@ -265,7 +351,7 @@ def _read_resnet_supervised() -> dict:
 @app.post("/train_baseline", summary="Spawn supervised baseline training subprocess")
 def train_baseline():
     """
-    Start `train_supervised_baseline.py` as a non-blocking background subprocess.
+    Start `compare_baselines.py` as a non-blocking background subprocess.
 
     Returns:
     - **status**: "started" (202), "already_running" (200), or "already_done" (200)

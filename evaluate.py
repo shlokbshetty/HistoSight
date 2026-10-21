@@ -29,7 +29,10 @@ CKPT_DIR        = os.path.join(BASE_DIR, "checkpoints")
 MODELS_DIR      = os.path.join(BASE_DIR, "models")
 BEST_SIMCLR     = os.path.join(CKPT_DIR, "best_simclr.pth")
 BEST_CLASSIFIER = os.path.join(MODELS_DIR, "best_classifier.pth")
-TEST_X          = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x.h5")
+BEST_ENCODER    = os.path.join(MODELS_DIR, "best_encoder.pth")
+TEST_X_NORM     = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x_normalized.h5")
+TEST_X_RAW      = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x.h5")
+TEST_X          = TEST_X_NORM if os.path.exists(TEST_X_NORM) else TEST_X_RAW
 TEST_Y          = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_y.h5")
 
 BATCH_SIZE = 64
@@ -56,6 +59,11 @@ class PCamTestDataset(Dataset):
             label = fy['y'][idx]
         img   = Image.fromarray(img.astype(np.uint8))
         label = int(np.array(label).squeeze())
+        
+        if "normalized" not in self.x_path:
+            import stain_norm
+            img = stain_norm.normalize_image(img)
+
         if self.transform:
             img = self.transform(img)
         return img, torch.tensor(label, dtype=torch.long)
@@ -72,25 +80,39 @@ transform = T.Compose([
 # MODEL LOADING
 # ======================
 def load_models():
-    for p, name in [(BEST_SIMCLR, "SimCLR checkpoint"), (BEST_CLASSIFIER, "Classifier checkpoint")]:
-        if not os.path.exists(p):
-            print(f"[ERROR] {name} not found: {p}")
-            print("        Run train.py then fine_tune.py first.")
-            sys.exit(1)
+    if not os.path.exists(BEST_CLASSIFIER):
+        print(f"[ERROR] Classifier checkpoint not found at {BEST_CLASSIFIER}")
+        sys.exit(1)
 
     # Encoder
     backbone = models.resnet18(weights=None)
     backbone.fc = nn.Identity()
     encoder = backbone.to(DEVICE)
 
-    simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE)
-    model_state = simclr_ckpt.get('model_state', simclr_ckpt.get('model', None))
-    encoder_state = {
-        k.replace("encoder.", ""): v
-        for k, v in model_state.items()
-        if k.startswith("encoder.")
-    }
-    encoder.load_state_dict(encoder_state, strict=True)
+    # Load either fine-tuned encoder or pre-trained SimCLR encoder
+    if os.path.exists(BEST_ENCODER):
+        print(f"[INFO] Loading fine-tuned encoder checkpoint from {BEST_ENCODER}")
+        encoder_ckpt = torch.load(BEST_ENCODER, map_location=DEVICE)
+        model_state = encoder_ckpt.get('model_state', encoder_ckpt.get('model', encoder_ckpt))
+        encoder_state = {
+            k.replace("encoder.", ""): v
+            for k, v in model_state.items()
+        }
+        encoder.load_state_dict(encoder_state, strict=True)
+    elif os.path.exists(BEST_SIMCLR):
+        print(f"[INFO] Loading pre-trained SimCLR encoder from {BEST_SIMCLR}")
+        simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE)
+        model_state = simclr_ckpt.get('model_state', simclr_ckpt.get('model', None))
+        encoder_state = {
+            k.replace("encoder.", ""): v
+            for k, v in model_state.items()
+            if k.startswith("encoder.")
+        }
+        encoder.load_state_dict(encoder_state, strict=True)
+    else:
+        print(f"[ERROR] Neither fine-tuned encoder ({BEST_ENCODER}) nor pre-trained SimCLR checkpoint ({BEST_SIMCLR}) was found.")
+        sys.exit(1)
+
     encoder.eval()
 
     # Classifier

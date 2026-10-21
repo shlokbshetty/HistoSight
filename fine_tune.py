@@ -29,12 +29,18 @@ LOG_DIR          = os.path.join(BASE_DIR, "logs")
 MODELS_DIR       = os.path.join(BASE_DIR, "models")
 BEST_SIMCLR      = os.path.join(CKPT_DIR, "best_simclr.pth")
 BEST_CLASSIFIER  = os.path.join(MODELS_DIR, "best_classifier.pth")
+BEST_ENCODER     = os.path.join(MODELS_DIR, "best_encoder.pth")
 COMPARISON_PATH  = os.path.join(LOG_DIR, "comparison.json")
 FINETUNE_METRICS = os.path.join(LOG_DIR, "finetune_metrics.json")
 
-TRAIN_X = os.path.join(DATA_DIR, "pcam_ssl_val_labeled_x.h5")
+TRAIN_X_NORM = os.path.join(DATA_DIR, "pcam_ssl_val_labeled_x_normalized.h5")
+TRAIN_X_RAW  = os.path.join(DATA_DIR, "pcam_ssl_val_labeled_x.h5")
+TEST_X_NORM  = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x_normalized.h5")
+TEST_X_RAW   = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x.h5")
+
+TRAIN_X = TRAIN_X_NORM if os.path.exists(TRAIN_X_NORM) else TRAIN_X_RAW
 TRAIN_Y = os.path.join(DATA_DIR, "pcam_ssl_val_labeled_y.h5")
-TEST_X  = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_x.h5")
+TEST_X  = TEST_X_NORM if os.path.exists(TEST_X_NORM) else TEST_X_RAW
 TEST_Y  = os.path.join(DATA_DIR, "pcam_ssl_test_labeled_y.h5")
 
 EPOCHS       = 30
@@ -62,6 +68,14 @@ def load_h5_to_ram(x_path, y_path, max_samples=None):
     with h5py.File(y_path, 'r') as f:
         y = f['y'][:n].squeeze().astype(np.int64)
     print(f"done. {n} samples")
+
+    if "normalized" not in x_path:
+        import stain_norm
+        print("[STAIN_NORM] Normalizing loaded RAM array on-the-fly...", end=" ", flush=True)
+        for i in range(len(x)):
+            x[i] = stain_norm.normalize_numpy(x[i])
+        print("done.")
+
     return x, y
 
 # ======================
@@ -103,7 +117,7 @@ class RamLabelDataset(Dataset):
 # ======================
 # ENCODER (FROZEN)
 # ======================
-def load_encoder():
+def load_encoder(finetune_encoder=False):
     backbone = models.resnet18(weights=None)
     backbone.fc = nn.Identity()
     encoder = backbone.to(DEVICE)
@@ -120,10 +134,21 @@ def load_encoder():
         if k.startswith("encoder.")
     }
     encoder.load_state_dict(encoder_state, strict=True)
-    for p in encoder.parameters():
-        p.requires_grad = False
-    encoder.eval()
-    print("[INFO] Frozen encoder loaded.")
+    
+    if finetune_encoder:
+        # Unfreeze layer4 for fine-tuning, keep earlier blocks frozen
+        for name, p in encoder.named_parameters():
+            if "layer4" in name:
+                p.requires_grad = True
+            else:
+                p.requires_grad = False
+        encoder.eval() # Keep batch norm in eval mode for normalization consistency
+        print("[INFO] Encoder loaded: layer4 unfrozen for fine-tuning.")
+    else:
+        for p in encoder.parameters():
+            p.requires_grad = False
+        encoder.eval()
+        print("[INFO] Frozen encoder loaded.")
     return encoder
 
 # ======================
@@ -189,6 +214,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int,   default=EPOCHS)
     parser.add_argument("--lr",     type=float, default=LR)
+    parser.add_argument("--finetune-encoder", action="store_true",
+                        help="Unfreeze and fine-tune encoder layer4 instead of linear probing")
     args = parser.parse_args()
 
     # ── Load data into RAM ──────────────────────────────────────────────────
@@ -196,25 +223,42 @@ def main():
     test_x,  test_y  = load_h5_to_ram(TEST_X,  TEST_Y,  MAX_TEST)
 
     # ── Load encoder ────────────────────────────────────────────────────────
-    encoder = load_encoder()
+    encoder = load_encoder(finetune_encoder=args.finetune_encoder)
 
-    # ── Pre-extract features (run encoder once, not every batch) ────────────
-    train_feats = extract_features(encoder, train_x, VAL_TRANSFORM)
-    test_feats  = extract_features(encoder, test_x,  VAL_TRANSFORM)
+    # ── Dataset & DataLoader Setup ──────────────────────────────────────────
+    if args.finetune_encoder:
+        # We need raw images for batch transforms rather than static pre-extracted features
+        train_set = RamLabelDataset(train_x, train_y, TRAIN_TRANSFORM)
+        test_set  = RamLabelDataset(test_x,  test_y,  VAL_TRANSFORM)
+        
+        train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True,
+                                  num_workers=0, pin_memory=False, drop_last=True)
+        test_loader  = DataLoader(test_set,  batch_size=BATCH_SIZE, shuffle=False,
+                                  num_workers=0, pin_memory=False)
+    else:
+        # Pre-extract features once at startup for standard linear probe
+        train_feats = extract_features(encoder, train_x, VAL_TRANSFORM)
+        test_feats  = extract_features(encoder, test_x,  VAL_TRANSFORM)
 
-    train_set = FeatureDataset(train_feats, train_y)
-    test_set  = FeatureDataset(test_feats,  test_y)
+        train_set = FeatureDataset(train_feats, train_y)
+        test_set  = FeatureDataset(test_feats,  test_y)
 
-    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=0, pin_memory=False, drop_last=False)
-    test_loader  = DataLoader(test_set,  batch_size=BATCH_SIZE, shuffle=False,
-                              num_workers=0, pin_memory=False)
+        train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True,
+                                  num_workers=0, pin_memory=False, drop_last=False)
+        test_loader  = DataLoader(test_set,  batch_size=BATCH_SIZE, shuffle=False,
+                                  num_workers=0, pin_memory=False)
 
     print(f"[INFO] Train batches/epoch: {len(train_loader)}")
 
     # ── Classifier ──────────────────────────────────────────────────────────
     classifier = nn.Linear(512, 2).to(DEVICE)
-    optimizer  = torch.optim.AdamW(classifier.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY)
+    
+    # Collect only parameters that require gradients
+    params = list(classifier.parameters())
+    if args.finetune_encoder:
+        params += [p for p in encoder.parameters() if p.requires_grad]
+        
+    optimizer  = torch.optim.AdamW(params, lr=args.lr, weight_decay=WEIGHT_DECAY)
     scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
     criterion  = nn.CrossEntropyLoss()
 
@@ -225,20 +269,29 @@ def main():
     total_time   = 0.0
 
     print(f"\n{'='*55}")
-    print(f" Linear Evaluation  |  Epochs: {args.epochs}  |  LR: {args.lr}")
+    mode_name = "Encoder Fine-Tuning" if args.finetune_encoder else "Linear Evaluation"
+    print(f" {mode_name}  |  Epochs: {args.epochs}  |  LR: {args.lr}")
     print(f"{'='*55}\n")
 
     for epoch in range(args.epochs):
         t0 = time.time()
         classifier.train()
+        if args.finetune_encoder:
+            encoder.eval()  # Keep batch norm stable
         total_loss = correct = total = 0
 
-        for feats, labels in tqdm(train_loader, desc=f"Epoch {epoch+1:02d}", leave=False, ncols=80):
-            feats  = feats.to(DEVICE,  non_blocking=True)
+        for inputs, labels in tqdm(train_loader, desc=f"Epoch {epoch+1:02d}", leave=False, ncols=80):
+            inputs = inputs.to(DEVICE, non_blocking=True)
             labels = labels.to(DEVICE, non_blocking=True)
 
-            logits = classifier(feats)
-            loss   = criterion(logits, labels)
+            if args.finetune_encoder:
+                with autocast(enabled=(DEVICE == "cuda")):
+                    feats  = encoder(inputs)
+                    logits = classifier(feats)
+                    loss   = criterion(logits, labels)
+            else:
+                logits = classifier(inputs)
+                loss   = criterion(logits, labels)
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -259,10 +312,14 @@ def main():
         classifier.eval()
         val_loss_sum = val_correct = val_total = 0
         with torch.no_grad():
-            for feats, labels in test_loader:
-                feats  = feats.to(DEVICE)
+            for inputs, labels in test_loader:
+                inputs = inputs.to(DEVICE)
                 labels = labels.to(DEVICE)
-                logits = classifier(feats)
+                if args.finetune_encoder:
+                    feats  = encoder(inputs)
+                    logits = classifier(feats)
+                else:
+                    logits = classifier(inputs)
                 loss   = criterion(logits, labels)
                 val_loss_sum += loss.item() * labels.size(0)
                 val_correct  += (logits.argmax(1) == labels).sum().item()
@@ -288,7 +345,11 @@ def main():
             no_improve   = 0
             torch.save({"classifier_state": classifier.state_dict(),
                         "epoch": epoch, "val_acc": val_acc}, BEST_CLASSIFIER)
-            print(f"  ↳ [BEST] val_acc={best_val_acc:.4f}")
+            if args.finetune_encoder:
+                torch.save({"model_state": encoder.state_dict()}, BEST_ENCODER)
+                print(f"  -> [BEST] val_acc={best_val_acc:.4f} (Saved encoder & classifier)")
+            else:
+                print(f"  -> [BEST] val_acc={best_val_acc:.4f} (Saved classifier)")
         else:
             no_improve += 1
             if no_improve >= PATIENCE:
@@ -305,8 +366,10 @@ def main():
     save_json(comp, COMPARISON_PATH)
 
     print(f"\n[DONE] Best val accuracy : {best_val_acc*100:.2f}%")
-    print(f"[DONE] Classifier saved  → {BEST_CLASSIFIER}")
-    print(f"[DONE] comparison.json   → {COMPARISON_PATH}")
+    print(f"[DONE] Classifier saved  -> {BEST_CLASSIFIER}")
+    if args.finetune_encoder:
+        print(f"[DONE] Encoder saved     -> {BEST_ENCODER}")
+    print(f"[DONE] comparison.json   -> {COMPARISON_PATH}")
 
 
 if __name__ == "__main__":

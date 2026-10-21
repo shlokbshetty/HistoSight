@@ -43,6 +43,8 @@ def gradcam(image_path, target_layer_name="layer4"):
 
     try:
         img    = Image.open(image_path).convert("RGB")
+        import stain_norm
+        img    = stain_norm.normalize_image(img)
         tensor = inference.inference_transform(img).unsqueeze(0).to(DEVICE)
 
         feats  = encoder(tensor)
@@ -78,6 +80,8 @@ def smoothgrad(image_path, n_samples=50, noise_level=0.15):
     encoder.eval()
 
     img    = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img    = stain_norm.normalize_image(img)
     tensor = inference.inference_transform(img).unsqueeze(0).to(DEVICE)
 
     grad_sum = torch.zeros_like(tensor)
@@ -111,6 +115,8 @@ def occlusion(image_path, patch_size=16, stride=8):
     encoder.eval()
 
     img    = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img    = stain_norm.normalize_image(img)
     tensor = inference.inference_transform(img).unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
@@ -165,7 +171,10 @@ def lime_explain(image_path, num_samples=1000):
             probs  = torch.softmax(logits, dim=1).cpu().numpy()
         return probs
 
-    img_np = np.array(Image.open(image_path).convert("RGB").resize((96, 96)))
+    img = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img = stain_norm.normalize_image(img)
+    img_np = np.array(img.resize((96, 96)))
     explainer = lime_image.LimeImageExplainer()
     explanation = explainer.explain_instance(
         img_np, predict_fn, top_labels=1, hide_color=0, num_samples=num_samples
@@ -202,28 +211,74 @@ def shap_explain(image_path, n_samples=100):
     model = FullModel(encoder, classifier).to(DEVICE)
     model.eval()
 
+    # Disable in-place ReLU layers to prevent PyTorch autograd hook errors during SHAP explanation
+    for module in model.modules():
+        if isinstance(module, nn.ReLU):
+            module.inplace = False
+
     img    = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img    = stain_norm.normalize_image(img)
     tensor = inference.inference_transform(img).unsqueeze(0).to(DEVICE)
 
     # Background: random samples from training data (simplified: use zeros)
     background = torch.zeros(10, 3, 96, 96).to(DEVICE)
 
-    explainer = shap.DeepExplainer(model, background)
+    explainer = shap.GradientExplainer(model, background)
     shap_values = explainer.shap_values(tensor)
 
-    # shap_values is (batch, classes, C, H, W) — take predicted class
     pred_idx = model(tensor).argmax(dim=1).item()
-    saliency = np.abs(shap_values[0][pred_idx]).mean(axis=0)  # (H, W)
+    if isinstance(shap_values, list):
+        # shap_values is a list of length classes, each of shape (batch, C, H, W)
+        shap_class = shap_values[pred_idx][0]
+    else:
+        # shap_values is an array of shape (batch, classes, C, H, W)
+        shap_class = shap_values[0][pred_idx]
+
+    saliency = np.abs(shap_class).mean(axis=0)  # (H, W)
     saliency = (saliency - saliency.min()) / (saliency.max() - saliency.min() + 1e-8)
 
     return saliency, inference.CLASS_MAP[pred_idx]
+
+# ======================
+# 6. VANILLA SALIENCY
+# ======================
+def saliency(image_path):
+    """Vanilla Saliency Maps: gradients of predicted class score w.r.t input image."""
+    encoder, classifier = inference._load_models()
+    encoder.eval()
+
+    img    = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img    = stain_norm.normalize_image(img)
+    tensor = inference.inference_transform(img).unsqueeze(0).to(DEVICE)
+    tensor.requires_grad = True
+
+    feats  = encoder(tensor)
+    logits = classifier(feats)
+    pred_idx = logits.argmax(dim=1).item()
+
+    encoder.zero_grad()
+    classifier.zero_grad()
+    logits[0, pred_idx].backward()
+
+    # Get absolute gradients w.r.t input image
+    grad = tensor.grad.abs().squeeze()  # (C, H, W)
+    saliency_map = grad.max(dim=0)[0].cpu().numpy()  # Max across color channels -> (H, W)
+    
+    # Normalize to [0, 1]
+    saliency_map = (saliency_map - saliency_map.min()) / (saliency_map.max() - saliency_map.min() + 1e-8)
+
+    return saliency_map, inference.CLASS_MAP[pred_idx]
 
 # ======================
 # VISUALIZATION
 # ======================
 def visualize(image_path, heatmap, pred_class, method_name, save_path=None):
     """Overlay heatmap on original image and display."""
-    img = Image.open(image_path).convert("RGB").resize((96, 96))
+    img = Image.open(image_path).convert("RGB")
+    import stain_norm
+    img = stain_norm.normalize_image(img).resize((96, 96))
     img_np = np.array(img) / 255.0
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
@@ -254,7 +309,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--image",  type=str, required=True, help="Path to image")
     parser.add_argument("--method", type=str, default="gradcam",
-                        choices=["gradcam", "smoothgrad", "occlusion", "lime", "shap"],
+                        choices=["gradcam", "smoothgrad", "occlusion", "lime", "shap", "saliency"],
                         help="Explainability method")
     parser.add_argument("--save",   type=str, help="Save path for visualization")
     args = parser.parse_args()
@@ -271,6 +326,8 @@ if __name__ == "__main__":
         heatmap, pred = lime_explain(args.image)
     elif args.method == "shap":
         heatmap, pred = shap_explain(args.image)
+    elif args.method == "saliency":
+        heatmap, pred = saliency(args.image)
 
     if heatmap is not None:
         visualize(args.image, heatmap, pred, args.method.upper(), args.save)

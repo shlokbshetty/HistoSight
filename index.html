@@ -183,11 +183,19 @@ tailwind.config = {
               <span class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant block">Active Model</span>
               <span class="text-sm font-bold">ResNet-18 + SimCLR + Macenko</span>
             </div>
-            <!-- Grad-CAM toggle -->
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="gradcam-toggle" class="w-4 h-4 accent-primary"/>
-              <span class="text-xs font-semibold text-on-surface-variant">Show Grad-CAM saliency</span>
-            </label>
+            <!-- XAI Method Dropdown -->
+            <div class="flex items-center gap-2">
+              <label for="xai-method" class="text-xs font-semibold text-on-surface-variant">Explainability (XAI):</label>
+              <select id="xai-method" class="bg-surface-container-high border border-outline-variant/30 rounded-xl px-3 py-1.5 text-xs focus:border-primary focus:ring-0 focus:outline-none transition-colors text-on-surface">
+                <option value="none">None</option>
+                <option value="gradcam" selected>Grad-CAM</option>
+                <option value="saliency">Vanilla Saliency</option>
+                <option value="smoothgrad">SmoothGrad</option>
+                <option value="occlusion">Occlusion Sensitivity</option>
+                <option value="lime">LIME</option>
+                <option value="shap">SHAP</option>
+              </select>
+            </div>
             <button id="predict-btn" disabled
               class="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary-container px-7 py-3 rounded-full font-bold text-sm shadow-[0_6px_20px_rgba(0,200,200,0.3)] hover:shadow-[0_10px_30px_rgba(0,200,200,0.5)] active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
               <span class="material-symbols-outlined text-base">bolt</span>
@@ -237,11 +245,11 @@ tailwind.config = {
                     </div>
                   </div>
                 </div>
-                <!-- Grad-CAM heatmap -->
+                <!-- Explainability heatmap -->
                 <div id="gradcam-wrap" class="hidden">
-                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-2">Grad-CAM Saliency</span>
+                  <span id="xai-title" class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-2">Grad-CAM Saliency</span>
                   <canvas id="gradcam-canvas" width="192" height="192" class="rounded-xl border border-outline-variant/20" style="width:192px;height:192px;image-rendering:pixelated"></canvas>
-                  <p class="text-[10px] text-on-surface-variant/60 mt-1">Red = high attention · Blue = low attention</p>
+                  <p id="xai-description" class="text-[10px] text-on-surface-variant/60 mt-1">Red = high attention · Blue = low attention</p>
                 </div>
               </div>
             </div>
@@ -637,8 +645,9 @@ predictBtn.addEventListener('click', async () => {
   document.getElementById('gradcam-wrap').classList.add('hidden');
   predictBtn.disabled = true;
 
-  const useGradcam = document.getElementById('gradcam-toggle').checked;
-  const endpoint   = useGradcam ? `${API}/gradcam` : `${API}/predict`;
+  const xaiMethod = document.getElementById('xai-method').value;
+  const useXai    = xaiMethod !== 'none';
+  const endpoint   = useXai ? `${API}/explain?method=${xaiMethod}` : `${API}/predict`;
 
   try {
     const form = new FormData();
@@ -650,7 +659,7 @@ predictBtn.addEventListener('click', async () => {
     }
     const data = await res.json();
     renderPrediction(data);
-    if (useGradcam && data.saliency_map) renderGradcam(data.saliency_map);
+    if (useXai && data.saliency_map) renderGradcam(data.saliency_map, xaiMethod);
   } catch (e) {
     showUploadError(e.message);
     showResultPlaceholder();
@@ -684,7 +693,28 @@ function renderPrediction(data) {
   document.getElementById('confidence-bar').style.width = `${pct}%`;
 }
 
-function renderGradcam(saliencyMap) {
+function renderGradcam(saliencyMap, method) {
+  const methodNames = {
+    gradcam: "Grad-CAM Saliency Map",
+    saliency: "Vanilla Saliency Map",
+    smoothgrad: "SmoothGrad Saliency Map",
+    occlusion: "Occlusion Sensitivity Map",
+    lime: "LIME Explanation Map",
+    shap: "SHAP Saliency Map"
+  };
+
+  const methodDescs = {
+    gradcam: "Highlights regions contributing to class prediction using gradients of last convolutional layer.",
+    saliency: "Highlights raw input pixels that are most sensitive to model output changes.",
+    smoothgrad: "Reduces noise in saliency map by averaging gradients over noisy perturbations of the input image.",
+    occlusion: "Highlights areas where masking the image causes the largest decrease in classification confidence.",
+    lime: "Approximates model locally with a linear model using superpixels to explain the prediction.",
+    shap: "Calculates Shapley values of superpixels to allocate the contribution of each image region."
+  };
+
+  document.getElementById('xai-title').textContent = methodNames[method] || "Explainability Saliency";
+  document.getElementById('xai-description').textContent = methodDescs[method] || "Red = high attention · Blue = low attention";
+
   const canvas = document.getElementById('gradcam-canvas');
   const ctx    = canvas.getContext('2d');
   const H = saliencyMap.length;
