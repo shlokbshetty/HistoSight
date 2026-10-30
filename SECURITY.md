@@ -28,7 +28,7 @@ Security updates and dependency patches are maintained for the current release o
 If you discover a security issue (e.g., path traversal in `/graphs/{filename}` or `/batch_predict`, denial-of-service via malformed TIFF/HDF5 payloads, or unsafe deserialization):
 
 1. **Do NOT disclose the issue in a public GitHub issue or pull request.**
-2. Submit a private report via [GitHub Security Advisories](https://github.com/shlokbshetty/HistoSight/security/advisories/new) or contact `@shlokbshetty` directly.
+2. Email **shettyshlok87@gmail.com** (or contact the repository maintainer via GitHub Private Vulnerability Reporting) with the subject `[SECURITY] HistoSight Vulnerability Report`.
 3. Provide:
    - Affected endpoint or module (`backend/main.py`, `inference.py`, `stain_norm.py`, etc.)
    - Minimal reproduction payload or curl command
