@@ -31,6 +31,7 @@ HistoSight addresses these challenges through a four-stage pipeline: **Macenko O
 ## 3. Core Design Patterns & Mathematical Formulations
 
 ### 3.1 Macenko Optical Density Decomposition (`stain_norm.py`)
+
 Raw RGB pixel intensities $I \in [0, 255]^{96 \times 96 \times 3}$ are converted to Optical Density ($OD$) space via the Beer-Lambert law:
 
 $$OD = -\log_{10}\left(\frac{\max(I, 1)}{I_0}\right)$$
@@ -38,6 +39,7 @@ $$OD = -\log_{10}\left(\frac{\max(I, 1)}{I_0}\right)$$
 Using Singular Value Decomposition (SVD) on pixels exceeding an optical density threshold, `torchstain.normalizers.MacenkoNormalizer(backend='numpy')` estimates the 2D plane spanned by the **Hematoxylin** and **Eosin** stain vectors and normalizes every input patch to match the reference stain matrix of `checkpoints/template.png`. If SVD fails on a pure-white background patch (`test_normalize_blank_fallback`), `normalize_numpy()` catches the exception and returns the original array unchanged.
 
 ### 3.2 SimCLR Contrastive Learning & NT-Xent Loss (`train.py`)
+
 For each normalized `96x96` patch $x$, `SimCLRTransform` samples two correlated views $(\tilde{x}_i, \tilde{x}_j)$ via random resized cropping (`scale=(0.2, 1.0)`), horizontal/vertical flips, and subtle color jitter (`p=0.4`).
 - **Encoder $f(\cdot)$**: `torchvision.models.resnet18(weights=None)` with `fc = nn.Identity()`, mapping $\tilde{x} \mapsto h \in \mathbb{R}^{512}$.
 - **Projection Head $g(\cdot)$**: `nn.Sequential(nn.Linear(512, 512), nn.ReLU(), nn.Linear(512, 128))`, mapping $h \mapsto z \in \mathbb{R}^{128}$.
@@ -48,11 +50,13 @@ $$\mathcal{L}_{i, j} = -\log \frac{\exp(\text{sim}(z_i, z_j) / \tau)}{\sum_{k=1}
 Self-similarity along the diagonal is masked with $-10^4$ prior to `F.cross_entropy`.
 
 ### 3.3 Two-Mode Downstream Transfer (`fine_tune.py`)
+
 `fine_tune.py` supports two distinct transfer learning strategies:
 1. **Pre-Extracted Linear Probe (Default)**: Extracts all `512-d` feature vectors into CPU RAM once at startup (`extract_features()`), wrapping them in `FeatureDataset`. The `nn.Linear(512, 2)` classifier then trains in milliseconds per epoch without redundant CNN forward passes.
 2. **Selective Block Unfreezing (`--finetune-encoder`)**: Unfreezes `encoder.layer4` while keeping earlier residual blocks (`conv1` through `layer3`) frozen and locking BatchNorm statistics (`encoder.eval()`) to prevent running-mean drift. Saves both `models/best_encoder.pth` and `models/best_classifier.pth`.
 
 ### 3.4 Atomic JSON Telemetry Persistence
+
 All training and benchmarking scripts (`train.py`, `fine_tune.py`, `compare_baselines.py`) write JSON metrics to a temporary `.tmp` file and execute an atomic OS rename (`os.replace(tmp, path)`). This guarantees that the FastAPI server (`GET /metrics`, `GET /comparison`) never reads a half-written JSON file while training is in progress.
 
 ---
@@ -75,49 +79,85 @@ All training and benchmarking scripts (`train.py`, `fine_tune.py`, `compare_base
 HistoSight/
 ├── backend/
 │   └── main.py                       # FastAPI service (/predict, /batch_predict, /gradcam, /explain, /metrics, /comparison, /train_baseline)
+
 ├── checkpoints/
 │   ├── best_simclr.pth               # Pre-trained SimCLR ResNet-18 + Projection Head checkpoint
+
 │   └── template.png                  # Reference 96x96 H&E patch for Macenko stain normalization
+
 ├── models/
 │   ├── best_classifier.pth           # Trained nn.Linear(512, 2) classification head weights
+
 │   └── best_encoder.pth              # Fine-tuned ResNet-18 encoder weights (when --finetune-encoder is used)
+
 ├── logs/
 │   ├── metrics.json                  # SimCLR pre-training epoch losses, top-1 contrastive accuracies, and epoch times
+
 │   ├── finetune_metrics.json         # Downstream linear/fine-tuning train & val accuracy/loss history
+
 │   └── comparison.json               # Benchmark results across SimCLR, ResNet18/50, EfficientNet-B0, & MobileNetV3
+
 ├── graphs/
 │   ├── loss_curve.png                # SimCLR NT-Xent train/val loss curve
+
 │   ├── accuracy_curve.png            # SimCLR contrastive top-1 accuracy curve
+
 │   ├── epoch_time.png                # Pre-training wall-clock duration per epoch
+
 │   ├── model_comparison.png          # Horizontal bar chart comparing SSL vs. ImageNet supervised baselines
+
 │   └── system_architecture.png       # Matplotlib-rendered pipeline summary chart
+
 ├── simclr/
 │   ├── pre-train.py                  # Standalone SimCLR experimental script
+
 │   ├── fine-tune.py                  # Standalone fine-tuning experimental script
+
 │   ├── test.py                       # Standalone evaluation script
+
 │   └── ssl_splits/                   # HDF5 dataset splits (raw and *_normalized.h5)
+
 ├── pcamv1/                           # Original PatchCamelyon (PCam) .h5.gz archives & metadata CSVs
+
 ├── pcam_test_100_per_class/          # Curated 200-image PNG test suite (0_normal/ & 1_tumor/)
+
 ├── tests/
 │   └── test_stain_norm.py            # Pytest unit tests for Macenko normalizer & blank patch fallback
+
 ├── docs/
 │   ├── ARCHITECTURE.md               # Detailed system architecture guide
+
 │   ├── API.md                        # Complete REST & Python API documentation
+
 │   └── assets/
 │       └── system-overview.svg       # Vector architecture & data flow diagram
+
 ├── stain_norm.py                     # Singleton MacenkoNormalizer manager & PIL/NumPy normalizer functions
+
 ├── normalize_dataset.py              # Offline chunked HDF5 stain normalization script
+
 ├── train.py                          # Primary SimCLR SSL pre-training pipeline
+
 ├── fine_tune.py                      # Primary linear evaluation & layer4 fine-tuning pipeline
+
 ├── evaluate.py                       # Test split accuracy & cross-entropy evaluator
+
 ├── compare_baselines.py              # Multi-model ImageNet LBFGS linear probe benchmark script
+
 ├── inference.py                      # Cached single/batch inference & Grad-CAM generator
+
 ├── explainability.py                 # 6-method XAI suite (Grad-CAM, SmoothGrad, Occlusion, LIME, SHAP, Saliency)
+
 ├── generate_graphs.py                # Dark-themed publication graph generator
+
 ├── generate_test_explanations.py     # Automated batch XAI verification runner
+
 ├── index.html                        # Interactive clinical histopathology browser console
+
 ├── paper.tex                         # LaTeX research manuscript
+
 └── requirements.txt                  # Python dependencies
+
 ```
 
 ---
@@ -125,15 +165,18 @@ HistoSight/
 ## 6. Component Breakdown
 
 ### 6.1 `stain_norm.py` & `normalize_dataset.py`
+
 - `get_normalizer()` caches a singleton `torchstain.normalizers.MacenkoNormalizer(backend='numpy')`. If `checkpoints/template.png` does not exist, it scans the first 10 patches of `pcam_ssl_val_labeled_x.h5` and selects the first tissue-rich patch with `mean < 200` as the reference template.
 - `normalize_numpy(arr)` and `normalize_image(img)` normalize any `(96, 96, 3)` uint8 array or `PIL.Image` on the fly.
 
 ### 6.2 `inference.py`
+
 - Lazily loads and caches `_encoder` (`ResNet-18` with `fc = nn.Identity()`) and `_classifier` (`nn.Linear(512, 2)`) on `DEVICE`.
 - Priority order for encoder weights: loads `models/best_encoder.pth` if present; otherwise strips the `encoder.` prefix from `checkpoints/best_simclr.pth`.
 - Applies `inference_transform`: `Resize((96, 96))` -> `ToTensor()` -> `Normalize(mean=[0.7011, 0.5859, 0.7054], std=[0.2128, 0.2438, 0.1955])`.
 
 ### 6.3 `explainability.py`
+
 Implements six distinct interpretability algorithms, each returning `(heatmap_96x96_float_0_to_1, predicted_class_str)`:
 1. **`gradcam(image_path, target_layer_name="layer4")`**: Registers forward and backward hooks on `encoder.layer4`, global-average-pools the gradients over spatial dimensions `(2, 3)`, computes the weighted combination of feature maps followed by `ReLU`, and bilinearly upsamples to `96x96`.
 2. **`smoothgrad(image_path, n_samples=50, noise_level=0.15)`**: Averages input-space absolute gradients $|\nabla_x \text{logit}_{c}|$ across `50` Gaussian-perturbed copies ($\sigma = 0.15$) of the normalized input tensor.
@@ -147,7 +190,8 @@ Implements six distinct interpretability algorithms, each returning `(heatmap_96
 ## 7. End-to-End Data Flow Patterns
 
 ### Flow A: Single-Tile Diagnostic & Explainability Request (`POST /explain`)
-1. The clinician uploads a `.png` / `.tif` patch to `POST /explain?method=smoothgrad` via `index.html` or `curl`.
+
+1. The clinician uploads a `.png` / `.tif` patch to `POST /explain — method=smoothgrad` via `index.html` or `curl`.
 2. `backend/main.py` validates the file extension (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`) and writes the stream to a secure `NamedTemporaryFile`.
 3. `stain_norm.normalize_image()` normalizes the patch's H&E optical density against `checkpoints/template.png`.
 4. `inference._load_models()` runs a forward pass to obtain the predicted class (`Tumor` or `Normal`) and softmax confidence (`0.0 - 1.0`).

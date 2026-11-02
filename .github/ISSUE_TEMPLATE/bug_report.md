@@ -33,8 +33,10 @@ assignees: ""
 ## Actual Behavior & Stack Trace
 
 <!-- Paste full traceback, HTTP error payload, or console log below: -->
+
 ```text
 Paste traceback or log output here
+
 ```
 
 ## Environment Information

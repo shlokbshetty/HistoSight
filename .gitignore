@@ -60,3 +60,5 @@ checkpoints/
 models/
 pcamv1/
 pcam_test_100_per_class/
+
+.agent/

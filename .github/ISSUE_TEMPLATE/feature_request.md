@@ -17,8 +17,10 @@ assignees: ""
 ## API or CLI Interface Changes (If Applicable)
 
 <!-- Provide example CLI flags or FastAPI endpoint request/response schemas: -->
+
 ```bash
 python explainability.py --image sample.png --method integrated_gradients
+
 ```
 
 ## Alternative Approaches Considered

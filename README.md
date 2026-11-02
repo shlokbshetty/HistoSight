@@ -1,13 +1,13 @@
 # HistoSight: Stain-Invariant Self-Supervised Histopathology Engine
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/shlokbshetty/HistoSight)
-[![Tests](https://img.shields.io/badge/Tests-Pytest_Passing-success?style=for-the-badge&logo=pytest&logoColor=white)](tests/test_stain_norm.py)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Torchstain](https://img.shields.io/badge/Torchstain-Macenko_Norm-4B8BBE?style=for-the-badge)](https://github.com/EIDOSlab/torchstain)
-[![SimCLR](https://img.shields.io/badge/SSL-SimCLR_ResNet18-792EE5?style=for-the-badge)](https://arxiv.org/abs/2002.05709)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen — style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/shlokbshetty/HistoSight)
+[![Tests](https://img.shields.io/badge/Tests-Pytest_Passing-success — style=for-the-badge&logo=pytest&logoColor=white)](tests/test_stain_norm.py)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue — style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB — style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C — style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688 — style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Torchstain](https://img.shields.io/badge/Torchstain-Macenko_Norm-4B8BBE — style=for-the-badge)](https://github.com/EIDOSlab/torchstain)
+[![SimCLR](https://img.shields.io/badge/SSL-SimCLR_ResNet18-792EE5 — style=for-the-badge)](https://arxiv.org/abs/2002.05709)
 
 **HistoSight** is an end-to-end computational pathology platform that combines **Macenko optical density stain normalization** (`torchstain`) with **SimCLR self-supervised contrastive learning** (`ResNet-18` backbone + `NT-Xent` loss) and a **6-method Explainable AI (XAI) suite** (`Grad-CAM`, `SmoothGrad`, `Vanilla Saliency`, `Occlusion Sensitivity`, `LIME`, and `SHAP`) to classify metastatic lymph node tissue in `96x96` H&E histopathology patches (PatchCamelyon / PCam). Deployed via an asynchronous **FastAPI** diagnostic microservice (`backend/main.py`) and an interactive zero-dependency browser console (`index.html`), HistoSight eliminates inter-laboratory staining variations while delivering pixel-level saliency heatmaps alongside every `Normal` vs. `Tumor` prediction.
 
@@ -38,24 +38,31 @@ For full mathematical formulations, component breakdowns, and data flow sequence
 ## Step-by-Step Local Setup
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/shlokbshetty/HistoSight.git
 cd HistoSight
+
 ```
 
 ### 2. Create & Activate Virtual Environment
+
 ```powershell
 python -m venv venv312
 .\venv312\Scripts\Activate.ps1
+
 ```
 
 ### 3. Install Core & Optional Dependencies
+
 ```powershell
 pip install --upgrade pip
 pip install -r requirements.txt
 
 # Optional: Install XAI (LIME/SHAP), visualization, and test packages
+
 pip install matplotlib lime scikit-image shap pytest
+
 ```
 
 ---
@@ -63,62 +70,93 @@ pip install matplotlib lime scikit-image shap pytest
 ## Build, Training, Inference & Execution Commands
 
 ### 1. Offline HDF5 Dataset Stain Normalization (Optional Pre-Computation)
+
 Pre-normalizes `simclr/ssl_splits/*.h5` in `1,000`-patch chunks using Macenko stain normalization:
+
 ```powershell
 python normalize_dataset.py
+
 ```
 
 ### 2. Self-Supervised SimCLR Pre-Training (`train.py`)
+
 Trains `SimCLRModel` (`ResNet-18` + `128-d` projection head) with `NT-Xent` loss ($\tau = 0.5$) and saves `checkpoints/best_simclr.pth` and `logs/metrics.json`:
+
 ```powershell
+
 # Resume from best checkpoint (default 30 epochs, batch size 256, lr 1e-3)
+
 python train.py --epochs 30 --lr 0.001
 
 # Train from scratch ignoring existing checkpoints
+
 python train.py --epochs 30 --lr 0.001 --scratch
+
 ```
 
 ### 3. Downstream Linear Probe & Encoder Fine-Tuning (`fine_tune.py`)
+
 Trains the `nn.Linear(512, 2)` tumor classifier on labeled PCam splits and writes `models/best_classifier.pth`, `models/best_encoder.pth`, `logs/finetune_metrics.json`, and `logs/comparison.json`:
+
 ```powershell
+
 # Fast linear evaluation on pre-extracted frozen 512-d features
+
 python fine_tune.py --epochs 30 --lr 0.001
 
 # End-to-end fine-tuning with ResNet-18 layer4 unfrozen
+
 python fine_tune.py --epochs 20 --lr 0.001 --finetune-encoder
+
 ```
 
 ### 4. Test Set Evaluation & Baseline Benchmarking
+
 ```powershell
+
 # Evaluate accuracy and cross-entropy loss on pcam_ssl_test_labeled_x/y.h5
+
 python evaluate.py
 
 # Benchmark against ImageNet-pretrained ResNet18, ResNet50, EfficientNet-B0, and MobileNetV3-Small
+
 python compare_baselines.py
 
 # Render publication-ready PNG charts in graphs/
+
 python generate_graphs.py
+
 ```
 
 ### 5. CLI Diagnostic Inference & Explainability (`inference.py`, `explainability.py`)
+
 ```powershell
+
 # Single-patch prediction
+
 python inference.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png
 
 # Batch folder prediction
+
 python inference.py --folder pcam_test_100_per_class/pcam_test_100_per_class/0_normal
 
 # Generate and save a 3-panel XAI visualization (gradcam, smoothgrad, occlusion, saliency, lime, shap)
+
 python explainability.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png --method gradcam --save explainability_result.png
 
 # Batch-generate all 6 XAI methods on normal and tumor test samples into test/
+
 python generate_test_explanations.py
+
 ```
 
 ### 6. Launch the FastAPI Server & Web Console
+
 ```powershell
 uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+
 ```
+
 - **Interactive Clinical Console**: Open `index.html` in your browser.
 - **OpenAPI Swagger UI**: Navigate to `http://127.0.0.1:8000/docs`.
 

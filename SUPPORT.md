@@ -1,6 +1,6 @@
 # HistoSight — Support & Troubleshooting (`SUPPORT.md`)
 
-Need assistance running SimCLR pre-training, troubleshooting Macenko stain normalization, or configuring the FastAPI diagnostic backend? Consult the resources and FAQs below.
+Need assistance running SimCLR pre-training, troubleshooting Macenko stain normalization, or configuring the FastAPI diagnostic backend — Consult the resources and FAQs below.
 
 ---
 
@@ -29,27 +29,39 @@ Need assistance running SimCLR pre-training, troubleshooting Macenko stain norma
 ## 3. Project-Specific FAQs
 
 ### Q1: `POST /predict` or `POST /gradcam` returns `HTTP 503 Service Unavailable` with `"Classifier checkpoint not found"`.
+
 `inference._load_models()` requires `models/best_classifier.pth` and either `models/best_encoder.pth` or `checkpoints/best_simclr.pth`. If you have not run `fine_tune.py` yet, run:
+
 ```powershell
 python train.py --epochs 30
 python fine_tune.py --epochs 20
+
 ```
 
-### Q2: `POST /explain?method=lime` or `POST /explain?method=shap` returns `HTTP 500 Internal Server Error`.
+### Q2: `POST /explain — method=lime` or `POST /explain — method=shap` returns `HTTP 500 Internal Server Error`.
+
 `LIME` and `SHAP` rely on optional packages (`lime`, `scikit-image`, `shap`) that are imported lazily inside `explainability.lime_explain()` and `explainability.shap_explain()`. Install them in your active virtual environment:
+
 ```powershell
 pip install lime scikit-image shap
+
 ```
 
 ### Q3: Why did `shap_explain` previously fail with a PyTorch `RuntimeError: Output 0 of BackwardHookFunctionBackward is a view and is being modified inplace`?
+
 Standard `torchvision.models.resnet18` layers use `nn.ReLU(inplace=True)`, which conflicts with `shap.GradientExplainer` backward hooks. HistoSight automatically resolves this in `explainability.py` (lines 215–217) by iterating through `model.modules()` and setting `module.inplace = False` on all `nn.ReLU` instances prior to running `GradientExplainer`.
 
 ### Q4: What happens if a blank white background slide patch is passed to `stain_norm.normalize_numpy()`?
+
 Pure white or near-empty glass regions lack sufficient optical density variance for Singular Value Decomposition (SVD) in Macenko normalization. `stain_norm.normalize_numpy()` wraps `normalizer.normalize()` in a `try...except` block and safely returns the original unmodified array when SVD fails (verified by `tests/test_stain_norm.py::test_normalize_blank_fallback`).
 
 ### Q5: How do I regenerate the training and comparison PNG charts in `graphs/`?
+
 After running `train.py`, `fine_tune.py`, and `compare_baselines.py` (which populate `logs/metrics.json` and `logs/comparison.json`), run:
+
 ```powershell
 python generate_graphs.py
+
 ```
+
 This outputs `loss_curve.png`, `accuracy_curve.png`, `epoch_time.png`, `model_comparison.png`, and `system_architecture.png` in `graphs/`.

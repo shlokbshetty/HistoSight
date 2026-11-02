@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [v1.0.0] - 2026-10-28
 
 ### Added
+
 - **Macenko Stain Normalization Pipeline (`stain_norm.py`, `normalize_dataset.py`, `tests/test_stain_norm.py`)**:
   - Implemented singleton `MacenkoNormalizer` (`torchstain` NumPy backend) with automatic reference template extraction (`checkpoints/template.png`) from `pcam_ssl_val_labeled_x.h5`.
   - Added chunked (`1,000` patches/chunk) offline HDF5 dataset normalizer (`normalize_dataset.py`) producing `*_normalized.h5` splits.
@@ -28,5 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Added interactive browser console (`index.html`) and dark-themed publication chart exporter (`generate_graphs.py`).
 
 ### Fixed
+
 - Resolved PyTorch autograd hook conflict in `explainability.shap_explain()` by disabling in-place `nn.ReLU` operations (`module.inplace = False`) before invoking `shap.GradientExplainer`.
 - Added automatic fallback in `train.py` from `pcam_ssl_train_unlabeled_x.h5` to `pcam_ssl_val_labeled_x_normalized.h5` if the unlabeled training HDF5 split is absent or unreadable.

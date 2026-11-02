@@ -5,6 +5,7 @@ This document outlines the short-term engineering milestones, medium-term clinic
 ---
 
 ## Phase 1: Stain-Invariant SimCLR Core & 6-Method XAI Suite (Completed — `v1.0.0`)
+
 - [x] Macenko optical density stain normalization (`stain_norm.py`) with automatic reference patch extraction (`checkpoints/template.png`) and chunked HDF5 preprocessing (`normalize_dataset.py`).
 - [x] Self-supervised `SimCLRModel` (`ResNet-18` + `128-d` projection MLP) pre-trained with `NT-Xent` InfoNCE loss ($\tau = 0.5$) and mixed precision (`train.py`).
 - [x] Downstream RAM-cached linear probing and `layer4` fine-tuning (`fine_tune.py`) with early stopping (`PATIENCE = 8`).
@@ -15,6 +16,7 @@ This document outlines the short-term engineering milestones, medium-term clinic
 ---
 
 ## Phase 2: Short-Term Milestones (`v1.1.0` — Q1)
+
 - [ ] **Vahadane & Reinhard Stain Normalization Backends**:
   - Extend `stain_norm.py` with a configurable `--method [macenko|vahadane|reinhard]` parameter to benchmark structure-preserving sparse non-negative matrix factorization (SNMF) against Macenko SVD.
 - [ ] **Quantitative XAI Faithfulness Metrics**:
@@ -25,6 +27,7 @@ This document outlines the short-term engineering milestones, medium-term clinic
 ---
 
 ## Phase 3: Medium-Term Milestones (`v1.2.0` — Q2–Q3)
+
 - [ ] **Gigapixel Whole-Slide Image (WSI) Tiling & Pyramid Stitcher**:
   - Integrate `OpenSlide` / `tifffile` into `inference.py` to stream `.svs` and `.ndpi` whole-slide pyramids, classify non-background tissue tiles in batches, and assemble slide-level metastatic probability heatmaps.
 - [ ] **Vision Transformer (ViT / DINOv2) Self-Supervised Backbones**:
@@ -35,6 +38,7 @@ This document outlines the short-term engineering milestones, medium-term clinic
 ---
 
 ## Phase 4: Long-Term Milestones (`v2.0.0` — Q4+)
+
 - [ ] **Multi-Institutional External Validation (CAMELYON16 / CAMELYON17 / TCGA)**:
   - Evaluate zero-shot domain generalization across 5+ independent clinical centers without retraining the linear classifier.
 - [ ] **DICOM-WSI & HL7 FHIR Diagnostic Report Integration**:

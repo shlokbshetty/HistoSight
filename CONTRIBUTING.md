@@ -27,9 +27,11 @@ All commit messages must follow [Conventional Commits v1.0.0](https://www.conven
 [optional body explaining mathematical or architectural reasoning]
 
 [optional footer(s): Closes #42]
+
 ```
 
 ### Supported Scopes
+
 - `stain`: `stain_norm.py` and `normalize_dataset.py`
 - `simclr`: `train.py` and `simclr/pre-train.py`
 - `finetune`: `fine_tune.py`, `evaluate.py`, and `compare_baselines.py`
@@ -40,6 +42,7 @@ All commit messages must follow [Conventional Commits v1.0.0](https://www.conven
 - `docs`: Documentation and `paper.tex`
 
 ### Examples
+
 - `feat(xai): add SmoothGrad and SHAP GradientExplainer to explainability.py`
 - `fix(stain): catch SVD convergence errors on blank white patches in normalize_numpy`
 - `perf(finetune): pre-extract 512-d ResNet18 features to RAM for linear probing`
@@ -63,14 +66,19 @@ All commit messages must follow [Conventional Commits v1.0.0](https://www.conven
 Run the following checks before opening a PR:
 
 ```powershell
+
 # 1. Run unit tests
+
 pytest -v
 
 # 2. Verify single-patch inference and Grad-CAM execution
+
 python inference.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png
 
 # 3. Verify syntax and lint rules
+
 flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv312,.git,__pycache__
+
 ```
 
 ---
