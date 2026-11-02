@@ -15,7 +15,48 @@
 
 ## High-Level System Architecture
 
-![HistoSight System Architecture](docs/assets/system-overview.svg)
+```mermaid
+flowchart TD
+    subgraph ClientTier ["1. Clinical Diagnostic UI & Slide Viewer (:8501 / :3000)"]
+        DiagnosticUI["Interactive Clinical Dashboard<br/>(Streamlit / React High-Resolution WSI Viewer)"]
+        ROISelector["Region of Interest (ROI) Selector<br/>(Patch Cropper & Microscopic Zoom Controller)"]
+        HeatmapViewer["Grad-CAM Attention Overlay<br/>(Side-by-Side Histopathology Heatmap Rendering)"]
+    end
+
+    subgraph GatewayTier ["2. Ingestion & Preprocessing API (:8000)"]
+        FastAPIServer["FastAPI Diagnostic Server<br/>(Async Slide Ingestion & Batch Patching)"]
+        PatchExtractor["Tile & Patch Normalizer<br/>(96x96 Patching, Macenko Hematoxylin Stain Norm)"]
+        Validator["Image Integrity & Format Validator<br/>(TIFF, SVS, PNG, JPEG Microscopic Image Check)"]
+    end
+
+    subgraph NeuralTier ["3. Neural Inference & Explainability Engine"]
+        SimCLREncoder["SimCLR Self-Supervised Encoder<br/>(ResNet-50 Backbone Trained on PCam / PatchCamelyon)"]
+        ClassifierHead["Malignancy Classification Head<br/>(Tumor vs Normal Tissue Probability & Confidence)"]
+        GradCAMModule["Grad-CAM Saliency Engine<br/>(Gradient-Weighted Class Activation Mapping)"]
+    end
+
+    subgraph StorageTier ["4. Models, Checkpoints & Slide Archive"]
+        ModelRegistry[("PyTorch Model Registry<br/>(best_simclr_checkpoint.pth & weights)")]
+        DatasetStore[("PatchCamelyon PCam Archive<br/>(HDF5 / TFRecord Histopathology Tiles)")]
+        ReportExporter["Diagnostic Report Exporter<br/>(PDF Diagnostic Summary with Saliency Maps)"]
+    end
+
+    DiagnosticUI --> ROISelector
+    DiagnosticUI --> HeatmapViewer
+    ROISelector -->|Upload Slide Patch| FastAPIServer
+
+    FastAPIServer --> Validator
+    Validator --> PatchExtractor
+    PatchExtractor --> SimCLREncoder
+
+    SimCLREncoder --> ClassifierHead
+    ClassifierHead --> GradCAMModule
+    GradCAMModule --> HeatmapViewer
+
+    SimCLREncoder --> ModelRegistry
+    PatchExtractor --> DatasetStore
+    ClassifierHead --> ReportExporter
+```
 
 HistoSight operates across four tightly integrated architectural tiers:
 1. **Data & Stain Normalization Tier (`stain_norm.py`, `normalize_dataset.py`)**: Extracts a representative H&E reference patch (`checkpoints/template.png`) and fits a `torchstain.normalizers.MacenkoNormalizer` via Singular Value Decomposition (SVD) in optical density space to standardize Hematoxylin and Eosin stain vectors across raw HDF5 splits (`simclr/ssl_splits/*.h5`) and live inference uploads.
