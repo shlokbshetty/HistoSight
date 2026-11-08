@@ -130,9 +130,15 @@ tailwind.config = {
       <div class="h-4 w-px bg-outline-variant/30 hidden sm:block"></div>
       <span class="text-xs font-medium text-primary tracking-wide">AI PREDICTION ENGINE</span>
     </div>
-    <div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border border-outline-variant/10">
-      <div class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#45e4e4] animate-pulse"></div>
-      <span id="status-badge" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Idle</span>
+    <div class="flex items-center gap-3">
+      <button id="shortcuts-modal-btn" type="button" title="Keyboard Shortcuts (Press ?)" class="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-surface-container hover:bg-surface-bright rounded-full border border-outline-variant/15 text-xs text-on-surface-variant hover:text-on-surface transition-all">
+        <span class="material-symbols-outlined text-sm text-primary">keyboard</span>
+        <span class="text-[10px] font-mono font-bold tracking-wider">Shortcuts</span>
+      </button>
+      <div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border border-outline-variant/10">
+        <div id="status-dot" class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#45e4e4] animate-pulse"></div>
+        <span id="status-badge" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Connecting…</span>
+      </div>
     </div>
   </header>
 
@@ -368,6 +374,31 @@ tailwind.config = {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <!-- Clinical Consultation Export Actions -->
+                <div class="mt-4 pt-4 border-t border-outline-variant/10">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-xs text-primary">clinical_notes</span>
+                      Clinical Consultation Export
+                    </span>
+                    <span class="text-[9px] font-mono text-on-surface-variant/60">JSON · Markdown · PNG</span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-2">
+                    <button id="btn-export-json" type="button" class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-surface-container-high hover:bg-surface-bright text-on-surface text-xs font-semibold border border-outline-variant/20 hover:border-primary/40 transition-all">
+                      <span class="material-symbols-outlined text-sm text-primary">code_blocks</span>
+                      <span>JSON</span>
+                    </button>
+                    <button id="btn-copy-summary" type="button" class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-surface-container-high hover:bg-surface-bright text-on-surface text-xs font-semibold border border-outline-variant/20 hover:border-secondary/40 transition-all">
+                      <span class="material-symbols-outlined text-sm text-secondary">assignment</span>
+                      <span>Summary</span>
+                    </button>
+                    <button id="btn-save-canvas" type="button" class="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-surface-container-high hover:bg-surface-bright text-on-surface text-xs font-semibold border border-outline-variant/20 hover:border-tertiary/40 transition-all">
+                      <span class="material-symbols-outlined text-sm text-tertiary">download</span>
+                      <span>Image</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -776,10 +807,59 @@ tailwind.config = {
   </div><!-- /flex-1 p-8 -->
 </main>
 
+<!-- Keyboard Shortcuts Modal -->
+<div id="shortcuts-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-surface-container border border-outline-variant/20 rounded-3xl p-6 max-w-md w-full shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-xl">keyboard</span>
+        <h3 class="text-base font-bold text-on-surface">Keyboard Shortcuts</h3>
+      </div>
+      <button id="close-shortcuts-modal" class="p-1.5 rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined text-sm">close</span>
+      </button>
+    </div>
+    <div class="space-y-2 text-xs">
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Diagnostic Studio</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Alt + 1</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Validation & Batch Screening</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Alt + 2</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Training Analytics</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Alt + 3</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Model Comparison</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Alt + 4</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Architecture & About</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Alt + 5</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Run Neural Diagnosis</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Ctrl + Enter</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Toggle Shortcuts Dialog</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">?</kbd>
+      </div>
+      <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <span class="text-on-surface-variant font-medium">Close / Dismiss</span>
+        <kbd class="px-2 py-0.5 rounded bg-surface-container-highest font-mono text-[11px] font-bold text-primary">Esc</kbd>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast notification -->
-<div id="toast" class="fixed bottom-6 right-6 z-[100] opacity-0 pointer-events-none">
-  <div class="bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-2xl">
-    <span class="material-symbols-outlined text-tertiary text-base">warning</span>
+<div id="toast" class="fixed bottom-6 right-6 z-[100] opacity-0 pointer-events-none transition-all duration-300 transform translate-y-2">
+  <div id="toast-box" class="bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-2xl">
+    <span id="toast-icon" class="material-symbols-outlined text-primary text-base">info</span>
     <p id="toast-msg" class="text-sm font-semibold"></p>
   </div>
 </div>
@@ -860,17 +940,88 @@ if (window.innerWidth < 768) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// TOAST
+// TOAST NOTIFICATIONS & STATUS
 // ═══════════════════════════════════════════════════════════
-function showToast(msg, duration = 4000) {
+let toastTimeout = null;
+function showToast(msg, type = 'info', duration = 3500) {
   const toast = document.getElementById('toast');
-  document.getElementById('toast-msg').textContent = msg;
-  toast.classList.remove('opacity-0', 'pointer-events-none');
-  toast.classList.add('opacity-100');
-  setTimeout(() => {
-    toast.classList.remove('opacity-100');
-    toast.classList.add('opacity-0', 'pointer-events-none');
+  const toastBox = document.getElementById('toast-box');
+  const toastIcon = document.getElementById('toast-icon');
+  const toastMsg = document.getElementById('toast-msg');
+
+  if (!toast || !toastMsg) return;
+  toastMsg.textContent = msg;
+
+  if (toastTimeout) clearTimeout(toastTimeout);
+
+  if (type === 'success') {
+    if (toastIcon) {
+      toastIcon.textContent = 'check_circle';
+      toastIcon.className = 'material-symbols-outlined text-emerald-400 text-base';
+    }
+    if (toastBox) {
+      toastBox.className = 'bg-surface-container-highest border border-emerald-500/40 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-[0_10px_30px_rgba(16,185,129,0.2)]';
+    }
+  } else if (type === 'error') {
+    if (toastIcon) {
+      toastIcon.textContent = 'error';
+      toastIcon.className = 'material-symbols-outlined text-error text-base';
+    }
+    if (toastBox) {
+      toastBox.className = 'bg-surface-container-highest border border-error/40 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-[0_10px_30px_rgba(255,100,100,0.2)]';
+    }
+  } else {
+    if (toastIcon) {
+      toastIcon.textContent = 'info';
+      toastIcon.className = 'material-symbols-outlined text-primary text-base';
+    }
+    if (toastBox) {
+      toastBox.className = 'bg-surface-container-highest border border-primary/30 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-[0_10px_30px_rgba(69,228,228,0.2)]';
+    }
+  }
+
+  toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
+  toast.classList.add('opacity-100', 'translate-y-0');
+
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove('opacity-100', 'translate-y-0');
+    toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
   }, duration);
+}
+
+// Shortcuts modal toggle
+function toggleShortcutsModal(show) {
+  const modal = document.getElementById('shortcuts-modal');
+  if (!modal) return;
+  const isHidden = modal.classList.contains('hidden');
+  const shouldOpen = show !== undefined ? show : isHidden;
+  if (shouldOpen) {
+    modal.classList.remove('hidden');
+  } else {
+    modal.classList.add('hidden');
+  }
+}
+
+document.getElementById('shortcuts-modal-btn')?.addEventListener('click', () => toggleShortcutsModal(true));
+document.getElementById('close-shortcuts-modal')?.addEventListener('click', () => toggleShortcutsModal(false));
+document.getElementById('shortcuts-modal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'shortcuts-modal') toggleShortcutsModal(false);
+});
+
+// API health indicator helper
+function setApiStatus(online, label) {
+  const badge = document.getElementById('status-badge');
+  const dot = document.getElementById('status-dot');
+  if (badge) {
+    badge.textContent = label || (online ? 'API Online · ResNet-18' : 'Offline · Cached Telemetry');
+  }
+  if (dot) {
+    if (online) {
+      dot.className = 'w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#45e4e4] animate-pulse';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]';
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -883,6 +1034,7 @@ const predictBtn = document.getElementById('predict-btn');
 const previewWrap = document.getElementById('preview-wrap');
 const previewImg  = document.getElementById('preview-img');
 let selectedFile  = null;
+let lastPredictionData = null;
 
 browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
 dropZone.addEventListener('click', () => fileInput.click());
@@ -1055,7 +1207,87 @@ function renderPrediction(data) {
     if (tumorBarEl) tumorBarEl.style.width = `${pTumor}%`;
     if (normBarEl)  normBarEl.style.width  = `${pNorm}%`;
   }
+
+  // Save for clinical export
+  lastPredictionData = {
+    class: data.class,
+    confidence: data.confidence,
+    probabilities: data.probabilities || null,
+    tta: !!data.tta,
+    method: document.getElementById('xai-method')?.value || 'none',
+    filename: selectedFile ? selectedFile.name : 'histology_patch.png',
+    timestamp: new Date().toISOString()
+  };
 }
+
+// ═══════════════════════════════════════════════════════════
+// CLINICAL CONSULTATION EXPORTERS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btn-export-json')?.addEventListener('click', () => {
+  if (!lastPredictionData) {
+    showToast('Run an image analysis first before exporting.', 'info');
+    return;
+  }
+  const payload = {
+    platform: "HistoSight Clinical Pathology Engine",
+    version: "2.1.0",
+    model: "SimCLR-ResNet18",
+    analysis: lastPredictionData
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `histosight_report_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Diagnostic JSON report downloaded', 'success');
+});
+
+document.getElementById('btn-copy-summary')?.addEventListener('click', async () => {
+  if (!lastPredictionData) {
+    showToast('Run an image analysis first before copying summary.', 'info');
+    return;
+  }
+  const pTum = lastPredictionData.probabilities ? (lastPredictionData.probabilities.Tumor * 100).toFixed(2) + '%' : '—';
+  const pNorm = lastPredictionData.probabilities ? (lastPredictionData.probabilities.Normal * 100).toFixed(2) + '%' : '—';
+  const md = `### HistoSight AI Pathology Consultation Report
+- **Sample**: \`${lastPredictionData.filename}\`
+- **Timestamp**: ${lastPredictionData.timestamp}
+- **Diagnosis**: **${lastPredictionData.class === 'Tumor' ? 'Malignant Lymph Node Metastasis (Tumor)' : 'Benign Lymphoid Tissue (Normal)'}**
+- **Primary Confidence**: ${(lastPredictionData.confidence * 100).toFixed(2)}%
+- **Probability Distribution**: Tumor: ${pTum} | Normal: ${pNorm}
+- **Inference Mode**: ${lastPredictionData.tta ? '8-fold Dihedral (D4) Test-Time Augmentation' : 'Standard Feedforward'}
+- **Explainability Attribution**: ${lastPredictionData.method ? lastPredictionData.method.toUpperCase() : 'None'}
+- **Stain Normalization**: Macenko Optical Density SVD
+- **Impression**: Automated neural evaluation identifies histopathologic features consistent with ${lastPredictionData.class.toLowerCase()} classification.
+`;
+
+  try {
+    await navigator.clipboard.writeText(md);
+    showToast('Clinical consultation summary copied to clipboard!', 'success');
+  } catch (err) {
+    showToast('Failed to copy to clipboard', 'error');
+  }
+});
+
+document.getElementById('btn-save-canvas')?.addEventListener('click', () => {
+  const canvas = document.getElementById('composite-canvas');
+  if (!canvas || !currentLoadedImage) {
+    showToast('No diagnostic overlay available to save.', 'info');
+    return;
+  }
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `histosight_overlay_${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Diagnostic overlay image saved!', 'success');
+  }, 'image/png');
+});
 
 function renderGradcam(saliencyMap, method) {
   currentSaliencyMap = saliencyMap;
@@ -1721,6 +1953,9 @@ async function pollAll() {
       fetch(`${API}/train_baseline/status`).catch(() => null),
     ]);
 
+    const isOnline = !!((mRes && mRes.ok) || (cRes && cRes.ok));
+    setApiStatus(isOnline);
+
     if (mRes && mRes.ok) {
       const d = await mRes.json();
       if (d.epoch && d.epoch.length > 0) {
@@ -1740,8 +1975,8 @@ async function pollAll() {
 
     if (sRes && sRes.ok) {
       const s = await sRes.json();
-      document.getElementById('status-badge').textContent =
-        s.status === 'running' ? 'Training' : s.status === 'done' ? 'Done' : 'Idle';
+      const statusLabel = s.status === 'running' ? 'Training in Progress' : s.status === 'done' ? 'Training Finished' : 'API Online · ResNet-18';
+      setApiStatus(true, statusLabel);
       if (s.status === 'done' && pollingTimer) {
         clearInterval(pollingTimer);
         pollingTimer = null;
@@ -1749,8 +1984,48 @@ async function pollAll() {
     }
   } catch (e) {
     console.error('[poll] error:', e);
+    setApiStatus(false);
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('keydown', (e) => {
+  const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+  if (e.key === 'Escape') {
+    toggleShortcutsModal(false);
+    return;
+  }
+
+  // Ctrl+Enter or Meta+Enter to trigger prediction
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (predictBtn && !predictBtn.disabled) {
+      predictBtn.click();
+    } else {
+      showToast('Select an image patch before running prediction', 'info');
+    }
+    return;
+  }
+
+  // Alt + 1..5 for Tab Switching
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === '1') { e.preventDefault(); navigate('upload'); }
+    else if (e.key === '2') { e.preventDefault(); navigate('test'); }
+    else if (e.key === '3') { e.preventDefault(); navigate('analytics'); }
+    else if (e.key === '4') { e.preventDefault(); navigate('comparison'); }
+    else if (e.key === '5') { e.preventDefault(); navigate('about'); }
+    return;
+  }
+
+  // '?' key toggles shortcuts modal
+  if (!isInput && e.key === '?' && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    toggleShortcutsModal();
+  }
+});
 
 // ═══════════════════════════════════════════════════════════
 // DOM CONTENT LOADED — bootstrap
@@ -1764,13 +2039,18 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchComparison();
   loadTestResults();
 
+  // Test API connectivity
+  fetch(`${API}/samples/list`)
+    .then(r => setApiStatus(r.ok))
+    .catch(() => setApiStatus(false));
+
   // Auto-trigger baseline training (silent if already done)
   fetch(`${API}/train_baseline`, { method: 'POST' })
     .then(r => r.json())
     .then(d => console.log('[train_baseline]', d.status))
     .catch(e => {
       console.warn('[train_baseline] unavailable:', e.message);
-      showToast('Backend not running — charts loaded from cached JSON.');
+      showToast('Backend offline — loading cached telemetry & presets.');
     });
 
   // Start polling every 30s to pick up new epochs if training is running
