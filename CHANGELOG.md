@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Comprehensive Unit Test Suite (`tests/test_inference.py`, `tests/test_evaluate.py`)**:
   - Added unit tests for dihedral TTA batch generation, prediction structure, probability mass conservation ($\sum p_c = 1.0$), Grad-CAM shape/bounds, and clinical confusion matrix calculations.
   - All 9 pytest unit tests pass with zero warnings in under 12 seconds.
+- **Frontend Clinical Diagnostic Studio & Compositor (`index.html`)**:
+  - **Interactive Canvas Compositor & Saliency Heatmap Blending**: Real-time opacity slider ($0\% - 100\%$) blending saliency maps seamlessly onto histological tissue structures with pixel-perfect canvas rendering.
+  - **Scientific Pseudocolor Colormaps**: 5 high-contrast scientific palettes (Turbo Clinical, Jet Thermal, Viridis, Magma, Plasma) plus Composite Overlay and Side-by-Side Split views.
+  - **Quick Clinical Presets Tray**: 1-click sample chips (Tumor #1, Tumor #10, Normal #0, Normal #11) with instant automated inference.
+  - **Clinical Validation Dashboard**: Real-time evaluation against 2,000 held-out PCam test patches featuring a 2x2 color-coded confusion matrix ($TN=790, FP=219, FN=165, TP=826$) and sensitivity/specificity gauges.
+  - **Live Server-Side Batch Directory Screening Runner**: Run inference across entire directories (`pcam_test_100_per_class/...`) with TTA toggle, live metrics summary, interactive filtering (`All`, `Tumor`, `Normal`), and "Analyze XAI" handoff to the Diagnostic Studio.
+  - **Keyboard Shortcuts & Clinical Consultation Exporters**: Global accessibility hotkeys (`Alt+1..5`, `Ctrl+Enter`, `Esc`, `?` modal), one-click clinical JSON export, markdown consultation summary clipboard copy, and composite overlay PNG download.
+  - **API Connectivity Telemetry & Contextual Toasts**: Live API health badge and rich toast notifications for error, success, and transfer operations.
 
 ### Changed & Improved
 
