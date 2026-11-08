@@ -151,6 +151,28 @@ tailwind.config = {
             <p class="text-on-surface-variant text-sm mt-1">Upload a histopathology slide for immediate neural analysis.</p>
           </div>
 
+          <!-- Quick Clinical Presets Tray -->
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-surface-container/60 border border-outline-variant/10 p-3 rounded-2xl">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-base">science</span>
+              <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Quick Presets:</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2" id="preset-chips-wrap">
+              <button type="button" class="preset-chip px-3 py-1 bg-surface-container-high hover:bg-error-container/20 hover:text-error border border-outline-variant/20 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5" data-sample="1_tumor/test_patch_1.png" data-name="Tumor #1">
+                <span class="w-2 h-2 rounded-full bg-error"></span> Tumor #1
+              </button>
+              <button type="button" class="preset-chip px-3 py-1 bg-surface-container-high hover:bg-error-container/20 hover:text-error border border-outline-variant/20 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5" data-sample="1_tumor/test_patch_10.png" data-name="Tumor #10">
+                <span class="w-2 h-2 rounded-full bg-error"></span> Tumor #10
+              </button>
+              <button type="button" class="preset-chip px-3 py-1 bg-surface-container-high hover:bg-primary/20 hover:text-primary border border-outline-variant/20 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5" data-sample="0_normal/test_patch_0.png" data-name="Normal #0">
+                <span class="w-2 h-2 rounded-full bg-primary"></span> Normal #0
+              </button>
+              <button type="button" class="preset-chip px-3 py-1 bg-surface-container-high hover:bg-primary/20 hover:text-primary border border-outline-variant/20 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5" data-sample="0_normal/test_patch_11.png" data-name="Normal #11">
+                <span class="w-2 h-2 rounded-full bg-primary"></span> Normal #11
+              </button>
+            </div>
+          </div>
+
           <!-- Drop zone -->
           <div id="drop-zone" class="bg-surface-container rounded-3xl p-10 border-2 border-dashed border-primary/20 flex flex-col items-center justify-center gap-4 relative group hover:bg-surface-container-high transition-all duration-300 cursor-pointer">
             <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl pointer-events-none"></div>
@@ -232,20 +254,52 @@ tailwind.config = {
 
               <!-- Result state -->
               <div id="result-data" class="hidden">
-                <div class="flex items-start justify-between mb-6">
+                <div class="flex items-start justify-between mb-4">
                   <div>
-                    <h2 id="result-class" class="text-3xl font-extrabold">—</h2>
-                    <span id="result-badge" class="mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"></span>
+                    <h2 id="result-class" class="text-3xl font-extrabold tracking-tight">—</h2>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span id="result-badge" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"></span>
+                      <span id="result-tta-badge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                        <span class="material-symbols-outlined text-xs">sync</span> TTA 8x
+                      </span>
+                    </div>
                   </div>
-                  <div id="result-icon-wrap" class="w-11 h-11 rounded-2xl flex items-center justify-center border">
-                    <span class="material-symbols-outlined text-xl">biotech</span>
+                  <div id="result-icon-wrap" class="w-12 h-12 rounded-2xl flex items-center justify-center border shadow-lg">
+                    <span class="material-symbols-outlined text-2xl">biotech</span>
                   </div>
                 </div>
+
+                <!-- Dual Class Probabilities Breakdown -->
+                <div class="grid grid-cols-2 gap-3 mb-5">
+                  <div class="bg-surface-container-high/60 rounded-2xl p-3 border border-outline-variant/10">
+                    <div class="flex justify-between items-center text-xs mb-1.5 font-semibold">
+                      <span class="text-error flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-error"></span> Tumor
+                      </span>
+                      <span id="prob-tumor-val" class="font-bold text-on-surface">—</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface-dim rounded-full overflow-hidden">
+                      <div id="prob-tumor-bar" class="h-full bg-error transition-all duration-500 rounded-full" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <div class="bg-surface-container-high/60 rounded-2xl p-3 border border-outline-variant/10">
+                    <div class="flex justify-between items-center text-xs mb-1.5 font-semibold">
+                      <span class="text-primary flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> Normal
+                      </span>
+                      <span id="prob-normal-val" class="font-bold text-on-surface">—</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface-dim rounded-full overflow-hidden">
+                      <div id="prob-normal-bar" class="h-full bg-primary transition-all duration-500 rounded-full" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Confidence bar -->
-                <div class="mb-6">
+                <div class="mb-5 bg-surface-container-high/40 p-4 rounded-2xl border border-outline-variant/10">
                   <div class="flex justify-between items-end mb-2">
-                    <span class="text-sm font-semibold text-on-surface-variant">Confidence</span>
-                    <span id="result-confidence" class="text-4xl font-extrabold text-primary tracking-tighter">—</span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Top Confidence</span>
+                    <span id="result-confidence" class="text-3xl font-extrabold text-primary tracking-tighter">—</span>
                   </div>
                   <div class="h-3 w-full bg-surface-dim rounded-full overflow-hidden p-0.5 border border-outline-variant/10">
                     <div id="confidence-bar" class="h-full bg-gradient-to-r from-primary-container to-primary rounded-full relative overflow-hidden transition-all duration-700" style="width:0%">
@@ -253,11 +307,68 @@ tailwind.config = {
                     </div>
                   </div>
                 </div>
-                <!-- Explainability heatmap -->
+
+                <!-- Explainability interactive studio -->
                 <div id="gradcam-wrap" class="hidden">
-                  <span id="xai-title" class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-2">Grad-CAM Saliency</span>
-                  <canvas id="gradcam-canvas" width="192" height="192" class="rounded-xl border border-outline-variant/20" style="width:192px;height:192px;image-rendering:pixelated"></canvas>
-                  <p id="xai-description" class="text-[10px] text-on-surface-variant/60 mt-1">Red = high attention · Blue = low attention</p>
+                  <div class="flex items-center justify-between mb-3">
+                    <div>
+                      <span id="xai-title" class="text-[11px] font-bold text-on-surface uppercase tracking-wider block">Grad-CAM Saliency</span>
+                      <p id="xai-description" class="text-[10px] text-on-surface-variant/70 mt-0.5">High attention indicates diagnostic regions.</p>
+                    </div>
+                    <!-- View mode toggle -->
+                    <div class="flex items-center gap-1 bg-surface-container-high p-1 rounded-xl text-xs border border-outline-variant/20">
+                      <button id="view-mode-blend" type="button" class="px-2.5 py-1 rounded-lg font-bold bg-primary text-on-primary shadow transition-all">Overlay</button>
+                      <button id="view-mode-split" type="button" class="px-2.5 py-1 rounded-lg font-bold text-on-surface-variant hover:text-on-surface transition-all">Split</button>
+                    </div>
+                  </div>
+
+                  <!-- Canvas Viewer Container -->
+                  <div class="bg-surface-container-highest/40 p-4 rounded-2xl border border-outline-variant/20 flex flex-col items-center gap-3">
+                    <!-- Overlay Mode -->
+                    <div id="viewer-overlay-wrap" class="relative flex items-center justify-center">
+                      <canvas id="composite-canvas" width="192" height="192" class="rounded-xl border border-outline-variant/30 shadow-2xl transition-all" style="width:192px;height:192px;image-rendering:pixelated;"></canvas>
+                    </div>
+
+                    <!-- Split Mode -->
+                    <div id="viewer-split-wrap" class="hidden grid grid-cols-2 gap-3 w-full">
+                      <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">Raw H&E Patch</span>
+                        <canvas id="split-orig-canvas" width="96" height="96" class="rounded-xl border border-outline-variant/20 shadow-md" style="width:96px;height:96px;image-rendering:pixelated;"></canvas>
+                      </div>
+                      <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase mb-1">XAI Heatmap</span>
+                        <canvas id="split-heat-canvas" width="96" height="96" class="rounded-xl border border-outline-variant/20 shadow-md" style="width:96px;height:96px;image-rendering:pixelated;"></canvas>
+                      </div>
+                    </div>
+
+                    <!-- Interactive Blend & Colormap Controls -->
+                    <div class="w-full space-y-2.5 pt-2 border-t border-outline-variant/10 text-xs">
+                      <!-- Opacity Slider -->
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="font-semibold text-on-surface-variant whitespace-nowrap">Opacity:</span>
+                        <input id="opacity-slider" type="range" min="0" max="100" value="65" class="w-full accent-primary cursor-pointer"/>
+                        <span id="opacity-val" class="font-bold w-9 text-right text-primary">65%</span>
+                      </div>
+                      <!-- Colormap Selector & Magnification -->
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-semibold text-on-surface-variant">Colormap:</span>
+                          <select id="colormap-select" class="bg-surface-container-high border border-outline-variant/30 rounded-lg px-2 py-1 text-xs focus:ring-0 focus:outline-none text-on-surface">
+                            <option value="turbo" selected>Turbo (Clinical)</option>
+                            <option value="jet">Jet (Thermal)</option>
+                            <option value="viridis">Viridis</option>
+                            <option value="magma">Magma</option>
+                            <option value="plasma">Plasma</option>
+                          </select>
+                        </div>
+                        <div class="flex items-center gap-1">
+                          <button id="zoom-toggle" type="button" class="px-2 py-1 bg-surface-container-high hover:bg-surface-bright border border-outline-variant/30 rounded-lg text-[11px] font-bold transition-all text-on-surface">
+                            Zoom: <span id="zoom-level">1x</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -618,12 +729,63 @@ dropZone.addEventListener('drop', (e) => {
   if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 });
 
+// State for interactive saliency viewer
+let currentSaliencyMap = null;
+let currentLoadedImage = null;
+let currentMethod      = "gradcam";
+let currentViewMode    = "blend";
+let currentZoom        = 1;
+let currentOpacity     = 0.65;
+let currentColorMap    = "turbo";
+
+const COLORMAPS = {
+  turbo: function(t) {
+    const r = Math.max(0, Math.min(255, Math.round(255 * (0.1357 + t * (4.61539 - t * (42.6603 - t * (132.131 - t * (152.552 - t * 59.2863))))))));
+    const g = Math.max(0, Math.min(255, Math.round(255 * (0.0914 + t * (2.19418 + t * (4.84297 - t * (14.185 - t * (4.27729 - t * 2.82956))))))));
+    const b = Math.max(0, Math.min(255, Math.round(255 * (0.1067 + t * (12.5925 - t * (60.118 - t * (109.075 - t * (88.5085 - t * 26.8184))))))));
+    return [r, g, b];
+  },
+  jet: function(t) {
+    let r, g, b;
+    if (t < 0.25)      { r = 0; g = Math.round(t * 4 * 255); b = 255; }
+    else if (t < 0.5)  { r = 0; g = 255; b = Math.round((1 - (t - 0.25) * 4) * 255); }
+    else if (t < 0.75) { r = Math.round((t - 0.5) * 4 * 255); g = 255; b = 0; }
+    else               { r = 255; g = Math.round((1 - (t - 0.75) * 4) * 255); b = 0; }
+    return [r, g, b];
+  },
+  viridis: function(t) {
+    const r = Math.round(255 * Math.max(0, Math.min(1, 0.267 + t * (0.0048 + t * (2.82 - t * 2.1)))));
+    const g = Math.round(255 * Math.max(0, Math.min(1, 0.004 + t * (1.42 + t * (-0.56)))));
+    const b = Math.round(255 * Math.max(0, Math.min(1, 0.329 + t * (1.45 - t * 1.55))));
+    return [r, g, b];
+  },
+  magma: function(t) {
+    const r = Math.round(255 * Math.max(0, Math.min(1, -0.002 + t * (1.75 - t * 0.77))));
+    const g = Math.round(255 * Math.max(0, Math.min(1, t < 0.5 ? t * 0.4 : 0.2 + (t - 0.5) * 1.6)));
+    const b = Math.round(255 * Math.max(0, Math.min(1, t < 0.3 ? t * 2.5 : 0.75 - (t - 0.3) * 0.9)));
+    return [r, g, b];
+  },
+  plasma: function(t) {
+    const r = Math.round(255 * Math.max(0, Math.min(1, 0.058 + t * (2.3 - t * 1.35))));
+    const g = Math.round(255 * Math.max(0, Math.min(1, t < 0.6 ? t * 0.5 : 0.3 + (t - 0.6) * 1.6)));
+    const b = Math.round(255 * Math.max(0, Math.min(1, 0.55 + t * (0.8 - t * 1.2))));
+    return [r, g, b];
+  }
+};
+
 function setFile(file) {
   selectedFile = file;
   const reader = new FileReader();
   reader.onload = (e) => {
     previewImg.src = e.target.result;
     previewWrap.classList.remove('hidden');
+
+    const imgObj = new Image();
+    imgObj.onload = () => {
+      currentLoadedImage = imgObj;
+      if (currentSaliencyMap) redrawSaliencyViewer();
+    };
+    imgObj.src = e.target.result;
   };
   reader.readAsDataURL(file);
   predictBtn.disabled = false;
@@ -668,7 +830,9 @@ predictBtn.addEventListener('click', async () => {
     }
     const data = await res.json();
     renderPrediction(data);
-    if (useXai && data.saliency_map) renderGradcam(data.saliency_map, xaiMethod);
+    if (useXai && data.saliency_map) {
+      renderGradcam(data.saliency_map, xaiMethod);
+    }
   } catch (e) {
     showUploadError(e.message);
     showResultPlaceholder();
@@ -688,70 +852,204 @@ function renderPrediction(data) {
   document.getElementById('result-class').textContent = isTumor ? 'Malignant' : 'Benign';
 
   const badge = document.getElementById('result-badge');
-  const ttaSuffix = data.tta ? ' · TTA 8x' : '';
-  badge.textContent = data.class + ttaSuffix;
+  badge.textContent = data.class;
   badge.className = isTumor
-    ? 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-error-container text-on-error-container'
-    : 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary';
+    ? 'inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-error-container text-on-error-container'
+    : 'inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary';
+
+  const ttaBadge = document.getElementById('result-tta-badge');
+  if (ttaBadge) {
+    if (data.tta) ttaBadge.classList.remove('hidden');
+    else ttaBadge.classList.add('hidden');
+  }
 
   const iconWrap = document.getElementById('result-icon-wrap');
   iconWrap.className = isTumor
-    ? 'w-11 h-11 rounded-2xl flex items-center justify-center border bg-error-container/10 border-error/20 text-error'
-    : 'w-11 h-11 rounded-2xl flex items-center justify-center border bg-primary/10 border-primary/20 text-primary';
+    ? 'w-12 h-12 rounded-2xl flex items-center justify-center border bg-error-container/10 border-error/20 text-error shadow-lg'
+    : 'w-12 h-12 rounded-2xl flex items-center justify-center border bg-primary/10 border-primary/20 text-primary shadow-lg';
 
   document.getElementById('result-confidence').textContent = `${pct}%`;
   document.getElementById('confidence-bar').style.width = `${pct}%`;
+
+  // Render Dual Probabilities breakdown
+  if (data.probabilities) {
+    const pTumor = (data.probabilities.Tumor * 100).toFixed(1);
+    const pNorm  = (data.probabilities.Normal * 100).toFixed(1);
+    const tumorValEl = document.getElementById('prob-tumor-val');
+    const normValEl  = document.getElementById('prob-normal-val');
+    const tumorBarEl = document.getElementById('prob-tumor-bar');
+    const normBarEl  = document.getElementById('prob-normal-bar');
+
+    if (tumorValEl) tumorValEl.textContent = `${pTumor}%`;
+    if (normValEl)  normValEl.textContent  = `${pNorm}%`;
+    if (tumorBarEl) tumorBarEl.style.width = `${pTumor}%`;
+    if (normBarEl)  normBarEl.style.width  = `${pNorm}%`;
+  }
 }
 
 function renderGradcam(saliencyMap, method) {
+  currentSaliencyMap = saliencyMap;
+  currentMethod = method;
+
   const methodNames = {
-    gradcam: "Grad-CAM Saliency Map",
-    saliency: "Vanilla Saliency Map",
-    smoothgrad: "SmoothGrad Saliency Map",
-    occlusion: "Occlusion Sensitivity Map",
-    lime: "LIME Explanation Map",
-    shap: "SHAP Saliency Map"
+    gradcam:    "Grad-CAM Class Activation",
+    saliency:   "Vanilla Gradient Saliency",
+    smoothgrad: "SmoothGrad Noise-Averaged Attribution",
+    occlusion:  "Occlusion Sensitivity Map",
+    lime:       "LIME Superpixel Explanation",
+    shap:       "SHAP Shapley Attribution Map"
   };
 
   const methodDescs = {
-    gradcam: "Highlights regions contributing to class prediction using gradients of last convolutional layer.",
-    saliency: "Highlights raw input pixels that are most sensitive to model output changes.",
-    smoothgrad: "Reduces noise in saliency map by averaging gradients over noisy perturbations of the input image.",
-    occlusion: "Highlights areas where masking the image causes the largest decrease in classification confidence.",
-    lime: "Approximates model locally with a linear model using superpixels to explain the prediction.",
-    shap: "Calculates Shapley values of superpixels to allocate the contribution of each image region."
+    gradcam:    "Highlights discriminative features in layer4 via global-average-pooled class gradients.",
+    saliency:   "Pixel-level raw input sensitivity mapping the absolute class gradient magnitude.",
+    smoothgrad: "Averages input gradients across 50 Gaussian-perturbed views to suppress high-frequency noise.",
+    occlusion:  "Perturbs 16x16 sliding windows to measure local classification confidence drops.",
+    lime:       "Locally fits an interpretable linear surrogate over segmented histopathology superpixels.",
+    shap:       "Applies game-theoretic Shapley values via GradientExplainer against a background baseline."
   };
 
-  document.getElementById('xai-title').textContent = methodNames[method] || "Explainability Saliency";
-  document.getElementById('xai-description').textContent = methodDescs[method] || "Red = high attention · Blue = low attention";
+  document.getElementById('xai-title').textContent       = methodNames[method] || "Explainability Saliency";
+  document.getElementById('xai-description').textContent = methodDescs[method] || "High attention highlights diagnostic regions.";
 
-  const canvas = document.getElementById('gradcam-canvas');
-  const ctx    = canvas.getContext('2d');
-  const H = saliencyMap.length;
-  const W = saliencyMap[0].length;
-  canvas.width  = W;
-  canvas.height = H;
-  const imgData = ctx.createImageData(W, H);
+  redrawSaliencyViewer();
+  document.getElementById('gradcam-wrap').classList.remove('hidden');
+}
+
+function redrawSaliencyViewer() {
+  if (!currentSaliencyMap) return;
+
+  const H = currentSaliencyMap.length;
+  const W = currentSaliencyMap[0].length;
+  const colormapFn = COLORMAPS[currentColorMap] || COLORMAPS.turbo;
+
+  // 1. Generate Heatmap ImageData
+  const heatCanvas = document.createElement('canvas');
+  heatCanvas.width  = W;
+  heatCanvas.height = H;
+  const heatCtx = heatCanvas.getContext('2d');
+  const heatImgData = heatCtx.createImageData(W, H);
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const v   = saliencyMap[y][x];          // 0–1
+      const v = Math.max(0, Math.min(1, currentSaliencyMap[y][x]));
       const idx = (y * W + x) * 4;
-      // Jet colormap: blue→cyan→green→yellow→red
-      let r, g, b;
-      if (v < 0.25)      { r = 0;                    g = Math.round(v * 4 * 255);       b = 255; }
-      else if (v < 0.5)  { r = 0;                    g = 255;                            b = Math.round((1 - (v - 0.25) * 4) * 255); }
-      else if (v < 0.75) { r = Math.round((v - 0.5) * 4 * 255); g = 255;               b = 0; }
-      else               { r = 255;                  g = Math.round((1 - (v - 0.75) * 4) * 255); b = 0; }
-      imgData.data[idx]     = r;
-      imgData.data[idx + 1] = g;
-      imgData.data[idx + 2] = b;
-      imgData.data[idx + 3] = Math.round(180 + v * 75);  // alpha: more opaque where hot
+      const [r, g, b] = colormapFn(v);
+      heatImgData.data[idx]     = r;
+      heatImgData.data[idx + 1] = g;
+      heatImgData.data[idx + 2] = b;
+      heatImgData.data[idx + 3] = 255;
     }
   }
-  ctx.putImageData(imgData, 0, 0);
-  document.getElementById('gradcam-wrap').classList.remove('hidden');
+  heatCtx.putImageData(heatImgData, 0, 0);
+
+  // 2. Composite Overlay Canvas
+  const compCanvas = document.getElementById('composite-canvas');
+  if (compCanvas) {
+    const compCtx = compCanvas.getContext('2d');
+    compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+    compCtx.imageSmoothingEnabled = false;
+
+    // Draw base histology image
+    if (currentLoadedImage) {
+      compCtx.drawImage(currentLoadedImage, 0, 0, compCanvas.width, compCanvas.height);
+    } else {
+      compCtx.fillStyle = '#1e1f26';
+      compCtx.fillRect(0, 0, compCanvas.width, compCanvas.height);
+    }
+
+    // Blend colorized heatmap with currentOpacity
+    compCtx.globalAlpha = currentOpacity;
+    compCtx.drawImage(heatCanvas, 0, 0, compCanvas.width, compCanvas.height);
+    compCtx.globalAlpha = 1.0;
+  }
+
+  // 3. Split Canvas Views
+  const splitOrig = document.getElementById('split-orig-canvas');
+  const splitHeat = document.getElementById('split-heat-canvas');
+  if (splitOrig && currentLoadedImage) {
+    const origCtx = splitOrig.getContext('2d');
+    origCtx.imageSmoothingEnabled = false;
+    origCtx.clearRect(0, 0, splitOrig.width, splitOrig.height);
+    origCtx.drawImage(currentLoadedImage, 0, 0, splitOrig.width, splitOrig.height);
+  }
+  if (splitHeat) {
+    const hCtx = splitHeat.getContext('2d');
+    hCtx.imageSmoothingEnabled = false;
+    hCtx.clearRect(0, 0, splitHeat.width, splitHeat.height);
+    hCtx.drawImage(heatCanvas, 0, 0, splitHeat.width, splitHeat.height);
+  }
 }
+
+// Controls Listeners
+document.getElementById('opacity-slider')?.addEventListener('input', (e) => {
+  currentOpacity = parseFloat(e.target.value) / 100.0;
+  const opVal = document.getElementById('opacity-val');
+  if (opVal) opVal.textContent = `${e.target.value}%`;
+  redrawSaliencyViewer();
+});
+
+document.getElementById('colormap-select')?.addEventListener('change', (e) => {
+  currentColorMap = e.target.value;
+  redrawSaliencyViewer();
+});
+
+document.getElementById('view-mode-blend')?.addEventListener('click', () => {
+  currentViewMode = 'blend';
+  document.getElementById('viewer-overlay-wrap')?.classList.remove('hidden');
+  document.getElementById('viewer-split-wrap')?.classList.add('hidden');
+  document.getElementById('view-mode-blend')?.classList.add('bg-primary', 'text-on-primary', 'shadow');
+  document.getElementById('view-mode-blend')?.classList.remove('text-on-surface-variant');
+  document.getElementById('view-mode-split')?.classList.remove('bg-primary', 'text-on-primary', 'shadow');
+  document.getElementById('view-mode-split')?.classList.add('text-on-surface-variant');
+  redrawSaliencyViewer();
+});
+
+document.getElementById('view-mode-split')?.addEventListener('click', () => {
+  currentViewMode = 'split';
+  document.getElementById('viewer-overlay-wrap')?.classList.add('hidden');
+  document.getElementById('viewer-split-wrap')?.classList.remove('hidden');
+  document.getElementById('view-mode-split')?.classList.add('bg-primary', 'text-on-primary', 'shadow');
+  document.getElementById('view-mode-split')?.classList.remove('text-on-surface-variant');
+  document.getElementById('view-mode-blend')?.classList.remove('bg-primary', 'text-on-primary', 'shadow');
+  document.getElementById('view-mode-blend')?.classList.add('text-on-surface-variant');
+  redrawSaliencyViewer();
+});
+
+document.getElementById('zoom-toggle')?.addEventListener('click', () => {
+  const levels = [1, 1.5, 2];
+  const idx = levels.indexOf(currentZoom);
+  currentZoom = levels[(idx + 1) % levels.length];
+  const zoomLevelEl = document.getElementById('zoom-level');
+  if (zoomLevelEl) zoomLevelEl.textContent = `${currentZoom}x`;
+
+  const compCanvas = document.getElementById('composite-canvas');
+  if (compCanvas) {
+    const baseSize = 192;
+    const newSize = Math.round(baseSize * currentZoom);
+    compCanvas.style.width  = `${newSize}px`;
+    compCanvas.style.height = `${newSize}px`;
+  }
+});
+
+// Preset Chips Click Listener
+document.querySelectorAll('.preset-chip').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const sample = btn.dataset.sample;
+    const name   = btn.dataset.name;
+    try {
+      showToast(`Loading ${name}…`, 'info');
+      const res = await fetch(`${API}/samples/${sample}`);
+      if (!res.ok) throw new Error("Could not fetch preset sample patch");
+      const blob = await res.blob();
+      const file = new File([blob], sample.split('/').pop(), { type: 'image/png' });
+      setFile(file);
+      predictBtn.click();
+    } catch (e) {
+      showUploadError(`Preset load error: ${e.message}`);
+    }
+  });
+});
 
 // ═══════════════════════════════════════════════════════════
 // ANALYTICS CHARTS

@@ -32,7 +32,9 @@ BASE_DIR        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR         = os.path.join(BASE_DIR, "logs")
 METRICS_PATH    = os.path.join(LOG_DIR, "metrics.json")
 COMPARISON_PATH = os.path.join(LOG_DIR, "comparison.json")
+TEST_METRICS_PATH = os.path.join(LOG_DIR, "test_metrics.json")
 BASELINE_SCRIPT = os.path.join(BASE_DIR, "compare_baselines.py")
+SAMPLES_DIR     = os.path.join(BASE_DIR, "pcam_test_100_per_class", "pcam_test_100_per_class")
 
 # ======================
 # BASELINE SUBPROCESS STATE
@@ -430,3 +432,49 @@ def serve_graph(filename: str):
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Graph not found: {filename}")
     return FileResponse(path)
+
+
+@app.get("/test_metrics", summary="Retrieve test set clinical evaluation metrics")
+def get_test_metrics():
+    """Return the contents of `logs/test_metrics.json` recorded by `evaluate.py`."""
+    if not os.path.exists(TEST_METRICS_PATH):
+        raise HTTPException(
+            status_code=404,
+            detail="test_metrics.json not found. Run evaluate.py to generate it."
+        )
+    with open(TEST_METRICS_PATH, "r") as f:
+        data = json.load(f)
+    return JSONResponse(data)
+
+
+@app.get("/samples/list", summary="List curated sample test patches")
+def list_sample_patches():
+    """Return curated sample test patches from 0_normal and 1_tumor for instant UI testing."""
+    samples = []
+    if os.path.exists(SAMPLES_DIR):
+        for label_dir, label_name, is_tumor in [
+            ("1_tumor", "Metastatic Tumor", True),
+            ("0_normal", "Normal Lymph Node", False),
+        ]:
+            d = os.path.join(SAMPLES_DIR, label_dir)
+            if os.path.isdir(d):
+                files = sorted([f for f in os.listdir(d) if f.endswith(".png")])[:6]
+                for f in files:
+                    samples.append({
+                        "filename":   f,
+                        "label_dir":  label_dir,
+                        "label_name": label_name,
+                        "is_tumor":   is_tumor,
+                        "url":        f"/samples/{label_dir}/{f}",
+                    })
+    return JSONResponse(samples)
+
+
+@app.get("/samples/{label_dir}/{filename}", summary="Serve a curated sample test patch")
+def serve_sample_patch(label_dir: str, filename: str):
+    if label_dir not in {"0_normal", "1_tumor"}:
+        raise HTTPException(status_code=400, detail="Invalid sample directory")
+    path = os.path.join(SAMPLES_DIR, label_dir, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Sample patch not found: {filename}")
+    return FileResponse(path, media_type="image/png")
