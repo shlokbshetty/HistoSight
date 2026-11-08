@@ -37,3 +37,4 @@ def test_clinical_metric_calculations():
     assert specificity == 0.8
     assert precision == 0.8
     assert round(f1, 4) == 0.8
+

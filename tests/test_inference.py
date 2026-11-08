@@ -68,3 +68,4 @@ def test_gradcam_output_shape():
     assert saliency.shape == (96, 96)
     assert saliency.min() >= 0.0
     assert saliency.max() <= 1.0
+
