@@ -1,6 +1,6 @@
 # HistoSight — Support & Troubleshooting (`SUPPORT.md`)
 
-Need assistance running SimCLR pre-training, troubleshooting Macenko stain normalization, or configuring the FastAPI diagnostic backend — Consult the resources and FAQs below.
+Need assistance running SimCLR pre-training, troubleshooting Macenko stain normalization, or configuring the FastAPI diagnostic backend? Consult the resources and FAQs below.
 
 ---
 
@@ -38,7 +38,7 @@ python fine_tune.py --epochs 20
 
 ```
 
-### Q2: `POST /explain — method=lime` or `POST /explain — method=shap` returns `HTTP 500 Internal Server Error`.
+### Q2: `POST /explain?method=lime` or `POST /explain?method=shap` returns `HTTP 500 Internal Server Error`.
 
 `LIME` and `SHAP` rely on optional packages (`lime`, `scikit-image`, `shap`) that are imported lazily inside `explainability.lime_explain()` and `explainability.shap_explain()`. Install them in your active virtual environment:
 

@@ -23,7 +23,7 @@ No single interpretability method is sufficient for high-stakes medical imaging:
 - **Fine-Grained Gradient Attribution (`Vanilla Saliency` & `SmoothGrad`)** pinpoints individual hyperchromatic cell boundaries at native `96x96` resolution.
 - **Perturbation & Game-Theoretic Attribution (`Occlusion`, `LIME`, & `SHAP`)** quantifies the counterfactual impact of masking specific tissue subregions or superpixels on the final tumor probability.
 
-By unifying all six algorithms behind a single API (`POST /explain — method=...` in `backend/main.py`) and interactive console (`index.html`), HistoSight empowers clinicians and ML researchers to cross-verify model attention across multiple mathematical paradigms.
+By unifying all six algorithms behind a single API (`POST /explain?method=...` in `backend/main.py`) and interactive console (`index.html`), HistoSight empowers clinicians and ML researchers to cross-verify model attention across multiple mathematical paradigms.
 
 ---
 

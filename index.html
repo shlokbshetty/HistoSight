@@ -178,23 +178,31 @@ tailwind.config = {
           </div>
 
           <!-- Action bar -->
-          <div class="flex items-center justify-between bg-surface-container p-5 rounded-3xl">
+          <div class="flex flex-wrap items-center justify-between gap-4 bg-surface-container p-5 rounded-3xl">
             <div>
               <span class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant block">Active Model</span>
               <span class="text-sm font-bold">ResNet-18 + SimCLR + Macenko</span>
             </div>
-            <!-- XAI Method Dropdown -->
-            <div class="flex items-center gap-2">
-              <label for="xai-method" class="text-xs font-semibold text-on-surface-variant">Explainability (XAI):</label>
-              <select id="xai-method" class="bg-surface-container-high border border-outline-variant/30 rounded-xl px-3 py-1.5 text-xs focus:border-primary focus:ring-0 focus:outline-none transition-colors text-on-surface">
-                <option value="none">None</option>
-                <option value="gradcam" selected>Grad-CAM</option>
-                <option value="saliency">Vanilla Saliency</option>
-                <option value="smoothgrad">SmoothGrad</option>
-                <option value="occlusion">Occlusion Sensitivity</option>
-                <option value="lime">LIME</option>
-                <option value="shap">SHAP</option>
-              </select>
+            <!-- TTA and XAI Controls -->
+            <div class="flex items-center gap-4">
+              <!-- TTA Toggle -->
+              <div class="flex items-center gap-1.5 bg-surface-container-high px-3 py-1.5 rounded-xl border border-outline-variant/30">
+                <input id="tta-toggle" type="checkbox" class="rounded bg-surface-dim border-outline-variant/30 text-primary focus:ring-0 cursor-pointer" />
+                <label for="tta-toggle" class="text-xs font-semibold text-on-surface-variant cursor-pointer select-none" title="8-fold dihedral Test-Time Augmentation (D4 symmetry group)">TTA (8x)</label>
+              </div>
+              <!-- XAI Method Dropdown -->
+              <div class="flex items-center gap-2">
+                <label for="xai-method" class="text-xs font-semibold text-on-surface-variant">Explainability:</label>
+                <select id="xai-method" class="bg-surface-container-high border border-outline-variant/30 rounded-xl px-3 py-1.5 text-xs focus:border-primary focus:ring-0 focus:outline-none transition-colors text-on-surface">
+                  <option value="none">None</option>
+                  <option value="gradcam" selected>Grad-CAM</option>
+                  <option value="saliency">Vanilla Saliency</option>
+                  <option value="smoothgrad">SmoothGrad</option>
+                  <option value="occlusion">Occlusion Sensitivity</option>
+                  <option value="lime">LIME</option>
+                  <option value="shap">SHAP</option>
+                </select>
+              </div>
             </div>
             <button id="predict-btn" disabled
               class="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary-container px-7 py-3 rounded-full font-bold text-sm shadow-[0_6px_20px_rgba(0,200,200,0.3)] hover:shadow-[0_10px_30px_rgba(0,200,200,0.5)] active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none">
@@ -647,7 +655,8 @@ predictBtn.addEventListener('click', async () => {
 
   const xaiMethod = document.getElementById('xai-method').value;
   const useXai    = xaiMethod !== 'none';
-  const endpoint   = useXai ? `${API}/explain?method=${xaiMethod}` : `${API}/predict`;
+  const tta       = document.getElementById('tta-toggle')?.checked || false;
+  const endpoint  = useXai ? `${API}/explain?method=${xaiMethod}` : `${API}/predict?tta=${tta}`;
 
   try {
     const form = new FormData();
@@ -679,7 +688,8 @@ function renderPrediction(data) {
   document.getElementById('result-class').textContent = isTumor ? 'Malignant' : 'Benign';
 
   const badge = document.getElementById('result-badge');
-  badge.textContent = data.class;
+  const ttaSuffix = data.tta ? ' · TTA 8x' : '';
+  badge.textContent = data.class + ttaSuffix;
   badge.className = isTumor
     ? 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-error-container text-on-error-container'
     : 'mt-1 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary';

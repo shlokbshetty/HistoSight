@@ -55,17 +55,23 @@ Checks service health and whether `logs/metrics.json` and `logs/comparison.json`
 
 ### 2.3 `POST /predict` — Single Histopathology Patch Classification
 
-Uploads a single histopathology image patch, applies Macenko stain normalization (`stain_norm.normalize_image`), runs a forward pass through the cached `ResNet-18` encoder and `nn.Linear(512, 2)` classifier, and returns the predicted class (`"Tumor"` or `"Normal"`) and softmax confidence.
+Uploads a single histopathology image patch, applies Macenko stain normalization (`stain_norm.normalize_image`), runs a forward pass through the cached `ResNet-18` encoder and `nn.Linear(512, 2)` classifier, and returns the predicted class (`"Tumor"` or `"Normal"`), confidence, and class probabilities. Optionally applies 8-fold dihedral Test-Time Augmentation (TTA).
 
 - **Content-Type**: `multipart/form-data`
+- **Query Parameters**:
+  - `tta` (`bool`, optional, default `false`): Enable 8-fold dihedral Test-Time Augmentation ($D_4$ symmetry group) for higher prediction accuracy and calibration.
 - **Form Parameters**:
   - `file` (`UploadFile`, required): Image file (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`).
 - **Example `curl` Request**:
 
 ```bash
+# Standard single-view inference
 curl -X POST "http://127.0.0.1:8000/predict" \
-  -F "file=@pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png"
+  -F "file=@pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png"
 
+# Enhanced accuracy with 8x Test-Time Augmentation (TTA)
+curl -X POST "http://127.0.0.1:8000/predict?tta=true" \
+  -F "file=@pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png"
 ```
 
 - **Response (`200 OK`)**:
@@ -73,9 +79,13 @@ curl -X POST "http://127.0.0.1:8000/predict" \
 ```json
 {
   "class": "Tumor",
-  "confidence": 0.9142
+  "confidence": 0.9142,
+  "probabilities": {
+    "Normal": 0.0858,
+    "Tumor": 0.9142
+  },
+  "tta": false
 }
-
 ```
 
 - **Error Responses**:
@@ -92,12 +102,20 @@ curl -X POST "http://127.0.0.1:8000/predict" \
 
 ### 2.4 `POST /batch_predict` — Server-Side Directory Batch Inference
 
-Runs Macenko stain normalization and classification across all supported images in a server-side folder path. If a `labels.json` file (`{"filename.png": 0_or_1, ...}`) is present in the folder, also computes aggregate accuracy and cross-entropy loss.
+Runs Macenko stain normalization and classification across all supported images in a server-side folder path. If a `labels.json` file (`{"filename.png": 0_or_1, ...}`) is present in the folder, also computes aggregate accuracy and cross-entropy loss. Supports optional 8-fold dihedral TTA.
 
 - **Content-Type**: `application/json`
 - **Request Schema (`BatchPredictRequest`)**:
   - `folder` (`str`, required): Path to directory containing histopathology patches.
+  - `tta` (`bool`, optional, default `false`): Apply 8-fold dihedral TTA to every patch.
 - **Example Request Body**:
+
+```json
+{
+  "folder": "pcam_test_100_per_class/pcam_test_100_per_class/1_tumor",
+  "tta": true
+}
+```
 
 ```json
 {
@@ -171,9 +189,9 @@ Uploads an image patch and computes a `96x96` normalized (`[0.0, 1.0]`) interpre
 - **Query Parameters**:
   - `method` (`str`, optional, default `"gradcam"`): One of:
     - `"gradcam"`: Gradient-weighted Class Activation Mapping on `layer4`
-    - `"saliency"`: Vanilla input-space gradient magnitude ($\max_c |\nabla_x y|$)
-    - `"smoothgrad"`: Noise-averaged gradients ($N=50, \sigma=0.15$)
-    - `"occlusion"`: Sliding-window `16x16` patch occlusion sensitivity ($\text{stride}=8$)
+    - `"saliency"`: Vanilla input-space gradient magnitude ($\displaystyle \max_{c} \, \left| \nabla_x \, y^c \right|$)
+    - `"smoothgrad"`: Noise-averaged gradients ($N = 50$, $\sigma = 0.15$)
+    - `"occlusion"`: Sliding-window $16 \times 16$ patch occlusion sensitivity ($\text{stride} = 8$)
     - `"lime"`: Local Interpretable Model-agnostic Explanations (`num_samples=1000`)
     - `"shap"`: Deep learning `shap.GradientExplainer` Shapley attributions
 - **Form Parameters**:
@@ -181,9 +199,8 @@ Uploads an image patch and computes a `96x96` normalized (`[0.0, 1.0]`) interpre
 - **Example `curl` Request**:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/explain — method=smoothgrad" \
-  -F "file=@pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png"
-
+curl -X POST "http://127.0.0.1:8000/explain?method=smoothgrad" \
+  -F "file=@pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png"
 ```
 
 - **Response (`200 OK`)**:
@@ -365,26 +382,45 @@ norm_arr = stain_norm.normalize_numpy(raw_arr)
 ```python
 import inference
 
-# Single image prediction -> {"class": "Tumor" | "Normal", "confidence": float}
+# Single image prediction -> {"class": "Tumor" | "Normal", "confidence": float, "probabilities": dict, "tta": bool}
+single_res = inference.predict_single(
+    "pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png",
+    tta=True  # 8-fold dihedral Test-Time Augmentation
+)
 
-single_res = inference.predict_single("pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png")
+# Batch directory prediction -> {"predictions": [...], "accuracy": float | None, "loss": float | None, "tta": bool}
+batch_res = inference.predict_batch(
+    "pcam_test_100_per_class/pcam_test_100_per_class/0_normal",
+    tta=False
+)
 
-# Batch directory prediction -> {"predictions": [...], "accuracy": float | None, "loss": float | None}
-
-batch_res = inference.predict_batch("pcam_test_100_per_class/pcam_test_100_per_class/0_normal")
-
-# Grad-CAM dictionary -> {"class": str, "confidence": float, "saliency_map": list[list[float]]}
-
-gradcam_res = inference.generate_gradcam("pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png")
-
+# Grad-CAM dictionary -> {"class": str, "confidence": float, "probabilities": dict, "saliency_map": list[list[float]]}
+gradcam_res = inference.generate_gradcam(
+    "pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png"
+)
 ```
 
-### 3.3 `explainability.py`
+### 3.3 `evaluate.py`
+
+```python
+import evaluate
+
+# Run comprehensive clinical test evaluation (Accuracy, Balanced Acc, Sensitivity, Specificity, F1, ROC-AUC)
+report = evaluate.evaluate(
+    max_samples=5000,
+    batch_size=64,
+    tta=True,        # 8-fold dihedral Test-Time Augmentation
+    in_memory=True,  # Fast sequential RAM pre-loading
+    save_json="logs/test_metrics.json"
+)
+```
+
+### 3.4 `explainability.py`
 
 ```python
 import explainability
 
-img_path = "pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png"
+img_path = "pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png"
 
 heatmap, pred_class = explainability.gradcam(img_path, target_layer_name="layer4")
 heatmap, pred_class = explainability.smoothgrad(img_path, n_samples=50, noise_level=0.15)
@@ -394,7 +430,5 @@ heatmap, pred_class = explainability.lime_explain(img_path, num_samples=1000)
 heatmap, pred_class = explainability.shap_explain(img_path, n_samples=100)
 
 # Save 3-panel matplotlib overlay figure
-
 explainability.visualize(img_path, heatmap, pred_class, method_name="GRADCAM", save_path="out.png")
-
 ```

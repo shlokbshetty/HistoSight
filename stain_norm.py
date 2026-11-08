@@ -1,4 +1,5 @@
 import os
+import warnings
 import numpy as np
 import h5py
 from PIL import Image
@@ -25,12 +26,12 @@ def get_normalizer():
         val_x_path = os.path.join(DATA_DIR, "pcam_ssl_val_labeled_x.h5")
         if os.path.exists(val_x_path):
             try:
-                with h5py.File(val_x_path, 'r') as f:
+                with h5py.File(val_x_path, "r") as f:
                     # Choose a good representative patch. Index 0 is fine, or look for a non-blank one.
                     # Let's check a few indices and pick one that has a reasonable mean (not too white/blank)
                     best_img_arr = None
                     for idx in range(10):
-                        arr = f['x'][idx]
+                        arr = f["x"][idx]
                         mean_val = arr.mean()
                         # H&E images typically have background mean around 200-240.
                         # Tissues have lower means (e.g. 100-180). Let's pick one with mean < 200.
@@ -38,8 +39,8 @@ def get_normalizer():
                             best_img_arr = arr
                             break
                     if best_img_arr is None:
-                        best_img_arr = f['x'][0]
-                
+                        best_img_arr = f["x"][0]
+
                 img = Image.fromarray(best_img_arr)
                 img.save(TEMPLATE_PATH)
                 print(f"[STAIN_NORM] Extracted and saved reference template to: {TEMPLATE_PATH}")
@@ -50,13 +51,15 @@ def get_normalizer():
 
     # 2. Fit the normalizer
     # We use the 'numpy' backend for maximum robustness and stability in all environments
-    normalizer = torchstain.normalizers.MacenkoNormalizer(backend='numpy')
+    normalizer = torchstain.normalizers.MacenkoNormalizer(backend="numpy")
 
     if os.path.exists(TEMPLATE_PATH):
         try:
             target_img = Image.open(TEMPLATE_PATH).convert("RGB")
             target_arr = np.array(target_img)
-            normalizer.fit(target_arr)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                normalizer.fit(target_arr)
             print("[STAIN_NORM] Macenko Normalizer successfully fitted with template.")
             _normalizer = normalizer
         except Exception as e:
@@ -77,9 +80,16 @@ def normalize_numpy(arr: np.ndarray) -> np.ndarray:
     if normalizer is None:
         return arr
 
+    # If the image is virtually pure white background or has near-zero variance,
+    # SVD in optical density space is ill-conditioned; return the original array.
+    if arr.mean() > 245 or arr.std() < 3.0:
+        return arr
+
     try:
-        # torchstain expects a numpy array of shape (H, W, 3) in [0, 255]
-        norm, H, E = normalizer.normalize(I=arr, stains=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            # torchstain expects a numpy array of shape (H, W, 3) in [0, 255]
+            norm, H, E = normalizer.normalize(I=arr, stains=True)
         # Ensure correct type and bounds
         norm = np.clip(norm, 0, 255).astype(np.uint8)
         return norm
@@ -94,3 +104,4 @@ def normalize_image(img: Image.Image) -> Image.Image:
     arr = np.array(img.convert("RGB"))
     norm_arr = normalize_numpy(arr)
     return Image.fromarray(norm_arr)
+

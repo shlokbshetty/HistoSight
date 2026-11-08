@@ -73,30 +73,87 @@ flowchart TD
 
 ### 3.1 Macenko Optical Density Decomposition (`stain_norm.py`)
 
-Raw RGB pixel intensities $I \in [0, 255]^{96 \times 96 \times 3}$ are converted to Optical Density ($OD$) space via the Beer-Lambert law:
+Raw RGB pixel intensities $I \in [0,\, 255]^{96 \times 96 \times 3}$ are converted to Optical Density ($\mathbf{OD}$) space via the Beer-Lambert law:
 
-$$OD = -\log_{10}\left(\frac{\max(I, 1)}{I_0}\right)$$
+$$
+\mathbf{OD} = -\log_{10}\left( \frac{\max(I,\, 1)}{I_0} \right) = \mathbf{V} \cdot \mathbf{C}
+$$
 
-Using Singular Value Decomposition (SVD) on pixels exceeding an optical density threshold, `torchstain.normalizers.MacenkoNormalizer(backend='numpy')` estimates the 2D plane spanned by the **Hematoxylin** and **Eosin** stain vectors and normalizes every input patch to match the reference stain matrix of `checkpoints/template.png`. If SVD fails on a pure-white background patch (`test_normalize_blank_fallback`), `normalize_numpy()` catches the exception and returns the original array unchanged.
+where:
+- $I \in [0,\, 255]^{96 \times 96 \times 3}$ represents raw transmitted light intensity across RGB color channels.
+- $I_0 = 255$ denotes incident background light intensity.
+- $\mathbf{V} \in \mathbb{R}^{3 \times 2}$ is the stain matrix containing the unit optical density absorption vectors for **Hematoxylin** ($\mathbf{v}_H$) and **Eosin** ($\mathbf{v}_E$).
+- $\mathbf{C} \in \mathbb{R}^{2 \times P}$ contains the decoupled stain concentration maps across all $P = 96 \times 96$ pixels.
+
+Using Singular Value Decomposition (SVD) on pixels exceeding an optical density threshold, `torchstain.normalizers.MacenkoNormalizer(backend='numpy')` estimates the 2D plane spanned by the **Hematoxylin** and **Eosin** stain vectors and normalizes every input patch to match the reference stain matrix of `checkpoints/template.png`. If SVD encounters a pure-white or low-variance background patch (`test_normalize_blank_fallback`), `normalize_numpy()` safely catches the condition and returns the original array unchanged.
 
 ### 3.2 SimCLR Contrastive Learning & NT-Xent Loss (`train.py`)
 
-For each normalized `96x96` patch $x$, `SimCLRTransform` samples two correlated views $(\tilde{x}_i, \tilde{x}_j)$ via random resized cropping (`scale=(0.2, 1.0)`), horizontal/vertical flips, and subtle color jitter (`p=0.4`).
+For each normalized $96 \times 96$ patch $x$, `SimCLRTransform` samples two correlated views $(\tilde{x}_i,\, \tilde{x}_j)$ via random resized cropping (`scale=(0.2, 1.0)`), horizontal and vertical flips, and subtle color jitter (`p=0.4`).
 - **Encoder $f(\cdot)$**: `torchvision.models.resnet18(weights=None)` with `fc = nn.Identity()`, mapping $\tilde{x} \mapsto h \in \mathbb{R}^{512}$.
 - **Projection Head $g(\cdot)$**: `nn.Sequential(nn.Linear(512, 512), nn.ReLU(), nn.Linear(512, 128))`, mapping $h \mapsto z \in \mathbb{R}^{128}$.
-- **NT-Xent Loss (`nt_xent_loss`)**: Given a mini-batch of $N$ patches ($2N$ augmented views), let $\text{sim}(u, v) = \frac{u^\top v}{\|u\| \|v\|}$. The loss for a positive pair $(i, j)$ with temperature $\tau = 0.5$ is:
+- **Cosine Similarity**: Given representation vectors $u, v \in \mathbb{R}^{128}$:
 
-$$\mathcal{L}_{i, j} = -\log \frac{\exp(\text{sim}(z_i, z_j) / \tau)}{\sum_{k=1}^{2N} \mathbb{1}_{[k \neq i]} \exp(\text{sim}(z_i, z_k) / \tau)}$$
+$$
+\text{sim}(u,\, v) = \frac{u^\top v}{\|u\|_2 \cdot \|v\|_2}
+$$
 
-Self-similarity along the diagonal is masked with $-10^4$ prior to `F.cross_entropy`.
+- **NT-Xent Loss (`nt_xent_loss`)**: Given a mini-batch of $N$ patches ($2N$ augmented views), the loss for a positive pair $(i,\, j)$ with temperature $\tau = 0.5$ is defined as:
 
-### 3.3 Two-Mode Downstream Transfer (`fine_tune.py`)
+$$
+\mathcal{L}_{i,\, j} = -\log \frac{ \exp\left( \dfrac{\text{sim}(z_i,\, z_j)}{\tau} \right) }{ \displaystyle\sum_{k=1}^{2N} \mathbb{1}_{[k \neq i]} \cdot \exp\left( \dfrac{\text{sim}(z_i,\, z_k)}{\tau} \right) }
+$$
+
+Self-similarity along the matrix diagonal is masked with $-10^4$ prior to `F.cross_entropy`.
+
+### 3.3 Dihedral Test-Time Augmentation (TTA) Symmetry ($D_4$ Group)
+
+Histopathology tissue sections lack canonical orientation; microscopic specimens are invariant under the 8 planar symmetries of the dihedral group $D_4 \cong \mathbb{Z}_4 \rtimes \mathbb{Z}_2$ (4 rotations $\times$ 2 reflections). When `tta=True` is requested in `inference.py`, `evaluate.py`, or `POST /predict?tta=true`, predictions are averaged across all 8 dihedral transformations:
+
+$$
+\bar{p}(y = c \mid x) = \frac{1}{|D_4|} \sum_{g \in D_4} p\left(y = c \;\middle|\; g(x)\right)
+$$
+
+where $g \in D_4 = \{r_0, r_{90}, r_{180}, r_{270}, f_h, f_h \circ r_{90}, f_h \circ r_{180}, f_h \circ r_{270}\}$. This ensemble reduces prediction variance, improves confidence calibration, and reliably increases held-out test accuracy.
+
+### 3.4 Multi-Modal Explainable AI (XAI) Formulations (`explainability.py`)
+
+HistoSight implements six complementary interpretability paradigms:
+
+1. **Grad-CAM (Gradient-Weighted Class Activation Mapping)**:
+   Global average pooling computes the importance weights $\alpha_k^c$ of feature map $A^k$ for class $c$:
+
+   $$
+   \alpha_k^c = \frac{1}{Z} \sum_{i=1}^{H} \sum_{j=1}^{W} \frac{\partial y^c}{\partial A_{i,\, j}^k}
+   $$
+
+   $$
+   L_{\text{Grad-CAM}}^c = \text{ReLU}\left( \sum_{k=1}^{K} \alpha_k^c \, A^k \right)
+   $$
+
+   where $Z = H \times W$ is the spatial area of `layer4` and bilinearly upsampled to $96 \times 96$.
+
+2. **SmoothGrad (Noise-Averaged Saliency)**:
+   Averages input-space absolute gradients over $S = 50$ Gaussian-perturbed copies ($\sigma = 0.15$):
+
+   $$
+   M_{\text{SmoothGrad}}(x) = \frac{1}{S} \sum_{s=1}^{S} \left| \nabla_x \, f_c\left( x + \varepsilon_s \right) \right|, \quad \varepsilon_s \sim \mathcal{N}\left(0,\, \sigma^2 \mathbf{I}\right)
+   $$
+
+3. **Occlusion Sensitivity**:
+   Measures confidence drop when sliding a $16 \times 16$ zero mask $\mathbf{M}_{i,\, j}$ with stride $s = 8$:
+
+   $$
+   \Delta P_{i,\, j} = P(y = c \mid x) - P\left(y = c \;\middle|\; x \odot \mathbf{M}_{i,\, j}\right)
+   $$
+
+### 3.5 Two-Mode Downstream Transfer (`fine_tune.py`)
 
 `fine_tune.py` supports two distinct transfer learning strategies:
 1. **Pre-Extracted Linear Probe (Default)**: Extracts all `512-d` feature vectors into CPU RAM once at startup (`extract_features()`), wrapping them in `FeatureDataset`. The `nn.Linear(512, 2)` classifier then trains in milliseconds per epoch without redundant CNN forward passes.
 2. **Selective Block Unfreezing (`--finetune-encoder`)**: Unfreezes `encoder.layer4` while keeping earlier residual blocks (`conv1` through `layer3`) frozen and locking BatchNorm statistics (`encoder.eval()`) to prevent running-mean drift. Saves both `models/best_encoder.pth` and `models/best_classifier.pth`.
 
-### 3.4 Atomic JSON Telemetry Persistence
+### 3.6 Atomic JSON Telemetry Persistence
 
 All training and benchmarking scripts (`train.py`, `fine_tune.py`, `compare_baselines.py`) write JSON metrics to a temporary `.tmp` file and execute an atomic OS rename (`os.replace(tmp, path)`). This guarantees that the FastAPI server (`GET /metrics`, `GET /comparison`) never reads a half-written JSON file while training is in progress.
 
@@ -229,7 +286,7 @@ Implements six distinct interpretability algorithms, each returning `(heatmap_96
 
 ### Flow A: Single-Tile Diagnostic & Explainability Request (`POST /explain`)
 
-1. The clinician uploads a `.png` / `.tif` patch to `POST /explain — method=smoothgrad` via `index.html` or `curl`.
+1. The clinician uploads a `.png` / `.tif` patch to `POST /explain?method=smoothgrad` via `index.html` or `curl`.
 2. `backend/main.py` validates the file extension (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`) and writes the stream to a secure `NamedTemporaryFile`.
 3. `stain_norm.normalize_image()` normalizes the patch's H&E optical density against `checkpoints/template.png`.
 4. `inference._load_models()` runs a forward pass to obtain the predicted class (`Tumor` or `Normal`) and softmax confidence (`0.0 - 1.0`).

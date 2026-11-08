@@ -114,11 +114,14 @@ Generated PNGs are written to `test/normal_sample_<method>.png` and `test/tumor_
 ### 3.3 Held-Out Test Split Evaluation (`evaluate.py`)
 
 ```powershell
-python evaluate.py
+# Standard fast evaluation with sequential RAM pre-loading
+python evaluate.py --max-samples 5000 --in-memory
 
+# High-accuracy evaluation with 8-fold dihedral Test-Time Augmentation (D4 symmetry group)
+python evaluate.py --max-samples 5000 --in-memory --tta --save-json logs/test_metrics.json
 ```
 
-Outputs overall Test Accuracy (`%`) and Cross-Entropy Loss on `pcam_ssl_test_labeled_x/y.h5`.
+Outputs a comprehensive clinical diagnostic report: Test Accuracy, Balanced Accuracy, Sensitivity (Recall), Specificity, Precision (PPV), F1 Score, ROC-AUC, PR-AUC, Cross-Entropy Loss, and Confusion Matrix.
 
 ---
 

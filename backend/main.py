@@ -77,17 +77,21 @@ os.makedirs(GRAPHS_DIR, exist_ok=True)
 # ======================
 class BatchPredictRequest(BaseModel):
     folder: str
+    tta: bool = False
 
 
 class PredictionResult(BaseModel):
     predict_class: str
     confidence: float
+    probabilities: Optional[dict] = None
+    tta: Optional[bool] = False
 
 
 class BatchResult(BaseModel):
     predictions: list
     accuracy: float | None
     loss: float | None
+    tta: Optional[bool] = False
 
 # ======================
 # ROUTES
@@ -110,15 +114,18 @@ def health():
 
 
 @app.post("/predict", summary="Predict a single uploaded image")
-async def predict(file: UploadFile = File(...)):
+async def predict(file: UploadFile = File(...), tta: bool = False):
     """
     Upload an image file and get tumor/normal prediction.
 
     - **file**: Image file (JPEG, PNG, BMP, TIFF)
+    - **tta**: Optional boolean query flag for 8-fold dihedral Test-Time Augmentation
 
     Returns:
     - **class**: "Tumor" or "Normal"
     - **confidence**: float 0–1
+    - **probabilities**: {"Normal": float, "Tumor": float}
+    - **tta**: bool indicating whether TTA was applied
     """
     # Validate extension
     ext = os.path.splitext(file.filename)[1].lower()
@@ -134,10 +141,12 @@ async def predict(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, tmp)
             tmp_path = tmp.name
 
-        result = inference.predict_single(tmp_path)
+        result = inference.predict_single(tmp_path, tta=tta)
         return JSONResponse({
-            "class":      result["class"],
-            "confidence": result["confidence"],
+            "class":         result["class"],
+            "confidence":    result["confidence"],
+            "probabilities": result["probabilities"],
+            "tta":           result.get("tta", False),
         })
 
     except FileNotFoundError as e:
@@ -155,16 +164,18 @@ def batch_predict(request: BatchPredictRequest):
 
     Body:
     - **folder**: Absolute path to image folder on server
+    - **tta**: Optional boolean flag for 8-fold dihedral Test-Time Augmentation
 
     Optionally place a `labels.json` file in the folder for accuracy/loss calculation.
 
     Returns:
-    - **predictions**: List of {file, class, confidence}
+    - **predictions**: List of {file, class, confidence, probabilities}
     - **accuracy**: If labels.json provided
     - **loss**: If labels.json provided
+    - **tta**: bool
     """
     try:
-        result = inference.predict_batch(request.folder)
+        result = inference.predict_batch(request.folder, tta=request.tta)
         return JSONResponse(result)
     except NotADirectoryError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -269,6 +280,10 @@ async def explain(file: UploadFile = File(...), method: str = "gradcam"):
         return JSONResponse({
             "class": pred_class,
             "confidence": round(confidence, 4),
+            "probabilities": {
+                "Normal": round(probs[0, 0].item(), 4),
+                "Tumor":  round(probs[0, 1].item(), 4),
+            },
             "saliency_map": heatmap.tolist(),
         })
 

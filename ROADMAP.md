@@ -11,6 +11,9 @@ This document outlines the short-term engineering milestones, medium-term clinic
 - [x] Downstream RAM-cached linear probing and `layer4` fine-tuning (`fine_tune.py`) with early stopping (`PATIENCE = 8`).
 - [x] Multi-model LBFGS baseline comparison across ImageNet `ResNet-18`, `ResNet-50`, `EfficientNet-B0`, and `MobileNetV3-Small` (`compare_baselines.py`).
 - [x] Six-method XAI attribution suite (`Grad-CAM`, `SmoothGrad`, `Vanilla Saliency`, `Occlusion`, `LIME`, `SHAP`) in `explainability.py`.
+- [x] 8-fold dihedral Test-Time Augmentation ($D_4$ group) integrated across `inference.py`, `evaluate.py`, `backend/main.py`, and `index.html`.
+- [x] High-performance clinical evaluation report (`evaluate.py`) with Balanced Accuracy, Sensitivity, Specificity, F1, ROC-AUC, PR-AUC, and Confusion Matrix.
+- [x] Modern PyTorch AMP migration (`torch.amp.autocast`) and safe checkpoint loading (`weights_only=True`).
 - [x] FastAPI diagnostic microservice (`backend/main.py`) and interactive clinical browser console (`index.html`).
 
 ---

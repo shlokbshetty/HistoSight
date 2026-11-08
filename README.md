@@ -1,15 +1,15 @@
 # HistoSight: Stain-Invariant Self-Supervised Histopathology Engine
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen — style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/shlokbshetty/HistoSight)
-[![Tests](https://img.shields.io/badge/Tests-Pytest_Passing-success — style=for-the-badge&logo=pytest&logoColor=white)](tests/test_stain_norm.py)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue — style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB — style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C — style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688 — style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Torchstain](https://img.shields.io/badge/Torchstain-Macenko_Norm-4B8BBE — style=for-the-badge)](https://github.com/EIDOSlab/torchstain)
-[![SimCLR](https://img.shields.io/badge/SSL-SimCLR_ResNet18-792EE5 — style=for-the-badge)](https://arxiv.org/abs/2002.05709)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/shlokbshetty/HistoSight)
+[![Tests](https://img.shields.io/badge/Tests-Pytest_Passing-success?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Torchstain](https://img.shields.io/badge/Torchstain-Macenko_Norm-4B8BBE?style=for-the-badge)](https://github.com/EIDOSlab/torchstain)
+[![SimCLR](https://img.shields.io/badge/SSL-SimCLR_ResNet18-792EE5?style=for-the-badge)](https://arxiv.org/abs/2002.05709)
 
-**HistoSight** is an end-to-end computational pathology platform that combines **Macenko optical density stain normalization** (`torchstain`) with **SimCLR self-supervised contrastive learning** (`ResNet-18` backbone + `NT-Xent` loss) and a **6-method Explainable AI (XAI) suite** (`Grad-CAM`, `SmoothGrad`, `Vanilla Saliency`, `Occlusion Sensitivity`, `LIME`, and `SHAP`) to classify metastatic lymph node tissue in `96x96` H&E histopathology patches (PatchCamelyon / PCam). Deployed via an asynchronous **FastAPI** diagnostic microservice (`backend/main.py`) and an interactive zero-dependency browser console (`index.html`), HistoSight eliminates inter-laboratory staining variations while delivering pixel-level saliency heatmaps alongside every `Normal` vs. `Tumor` prediction.
+**HistoSight** is an end-to-end computational pathology platform that combines **Macenko optical density stain normalization** (`torchstain`) with **SimCLR self-supervised contrastive learning** (`ResNet-18` backbone + `NT-Xent` loss), **8-fold dihedral Test-Time Augmentation (TTA)**, and a **6-method Explainable AI (XAI) suite** (`Grad-CAM`, `SmoothGrad`, `Vanilla Saliency`, `Occlusion Sensitivity`, `LIME`, and `SHAP`) to classify metastatic lymph node tissue in $96 \times 96$ H&E histopathology patches (PatchCamelyon / PCam). Deployed via an asynchronous **FastAPI** diagnostic microservice (`backend/main.py`) and an interactive zero-dependency browser console (`index.html`), HistoSight eliminates inter-laboratory staining variations while delivering pixel-level saliency heatmaps alongside every `Normal` vs. `Tumor` prediction.
 
 ---
 
@@ -65,6 +65,48 @@ HistoSight operates across four tightly integrated architectural tiers:
 4. **FastAPI Microservice & Clinical Console Tier (`backend/main.py`, `index.html`)**: Exposes 10 REST endpoints for single/batch inference, XAI heatmap generation, training telemetry, and non-blocking baseline subprocess execution, paired with an interactive browser UI.
 
 For full mathematical formulations, component breakdowns, and data flow sequences, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** (also available at **[ARCHITECTURE.md](ARCHITECTURE.md)**).
+
+---
+
+## Mathematical Foundations
+
+### 1. Optical Density & Macenko Stain Decomposition
+
+Histopathology color variation is governed by Beer-Lambert light absorption across RGB channels:
+
+$$
+\mathbf{OD} = -\log_{10}\left( \frac{\max(I,\, 1)}{I_0} \right) = \mathbf{V} \cdot \mathbf{C}
+$$
+
+where:
+- $I \in [0,\, 255]^{96 \times 96 \times 3}$ is raw transmitted light intensity across RGB channels.
+- $I_0 = 255$ denotes incident background light intensity.
+- $\mathbf{V} \in \mathbb{R}^{3 \times 2}$ is the stain matrix containing absorption vectors for Hematoxylin and Eosin.
+- $\mathbf{C} \in \mathbb{R}^{2 \times P}$ contains the decoupled stain concentrations across all $P = 96 \times 96$ pixels.
+
+### 2. SimCLR Normalized Temperature-Scaled Cross-Entropy (NT-Xent)
+
+Given positive pair representations $(z_i,\, z_j) \in \mathbb{R}^{128}$ from two stochastic augmented views of the same patch, the contrastive loss with temperature $\tau = 0.5$ is:
+
+$$
+\mathcal{L}_{i,\, j} = -\log \frac{ \exp\left( \dfrac{\text{sim}(z_i,\, z_j)}{\tau} \right) }{ \displaystyle\sum_{k=1}^{2N} \mathbb{1}_{[k \neq i]} \cdot \exp\left( \dfrac{\text{sim}(z_i,\, z_k)}{\tau} \right) }
+$$
+
+where the cosine similarity is defined as:
+
+$$
+\text{sim}(u,\, v) = \frac{u^\top v}{\|u\|_2 \cdot \|v\|_2}
+$$
+
+### 3. Dihedral Test-Time Augmentation (TTA)
+
+Histopathological tissue sections exhibit complete 8-fold planar dihedral symmetry ($D_4 \cong \mathbb{Z}_4 \rtimes \mathbb{Z}_2$). TTA averages predictions across all 8 isometric rotations and reflections:
+
+$$
+\bar{p}(y = c \mid x) = \frac{1}{|D_4|} \sum_{g \in D_4} p\left(y = c \;\middle|\; g(x)\right)
+$$
+
+This eliminates arbitrary slide orientation bias, lowers test loss, and significantly boosts held-out classification accuracy and calibration.
 
 ---
 
@@ -154,48 +196,45 @@ python fine_tune.py --epochs 20 --lr 0.001 --finetune-encoder
 ### 4. Test Set Evaluation & Baseline Benchmarking
 
 ```powershell
+# Fast clinical evaluation on held-out test split (Accuracy, Balanced Acc, Sensitivity, Specificity, F1, ROC-AUC)
+python evaluate.py --max-samples 5000 --in-memory
 
-# Evaluate accuracy and cross-entropy loss on pcam_ssl_test_labeled_x/y.h5
-
-python evaluate.py
+# Evaluate with 8-fold dihedral Test-Time Augmentation (TTA) for increased accuracy
+python evaluate.py --max-samples 5000 --in-memory --tta
 
 # Benchmark against ImageNet-pretrained ResNet18, ResNet50, EfficientNet-B0, and MobileNetV3-Small
-
 python compare_baselines.py
 
 # Render publication-ready PNG charts in graphs/
-
 python generate_graphs.py
-
 ```
 
 ### 5. CLI Diagnostic Inference & Explainability (`inference.py`, `explainability.py`)
 
 ```powershell
+# Standard single-patch prediction
+python inference.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png
 
-# Single-patch prediction
-
-python inference.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png
+# Single-patch prediction with 8-fold dihedral Test-Time Augmentation (TTA)
+python inference.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png --tta
 
 # Batch folder prediction
-
 python inference.py --folder pcam_test_100_per_class/pcam_test_100_per_class/0_normal
 
-# Generate and save a 3-panel XAI visualization (gradcam, smoothgrad, occlusion, saliency, lime, shap)
+# Batch folder prediction with TTA enabled
+python inference.py --folder pcam_test_100_per_class/pcam_test_100_per_class/0_normal --tta
 
-python explainability.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_2.png --method gradcam --save explainability_result.png
+# Generate and save a 3-panel XAI visualization (gradcam, smoothgrad, occlusion, saliency, lime, shap)
+python explainability.py --image pcam_test_100_per_class/pcam_test_100_per_class/1_tumor/test_patch_1.png --method gradcam --save explainability_result.png
 
 # Batch-generate all 6 XAI methods on normal and tumor test samples into test/
-
 python generate_test_explanations.py
-
 ```
 
 ### 6. Launch the FastAPI Server & Web Console
 
 ```powershell
 uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-
 ```
 
 - **Interactive Clinical Console**: Open `index.html` in your browser.
@@ -211,15 +250,16 @@ HistoSight centralizes its training hyperparameters, normalization constants, an
 | :--- | :--- | :--- | :--- |
 | `stain_norm.py` | `TEMPLATE_PATH` | `checkpoints/template.png` | Reference H&E patch (`mean < 200`) used to fit `MacenkoNormalizer(backend='numpy')` |
 | `train.py` | `EPOCHS` / `--epochs` | `30` | Number of SimCLR self-supervised pre-training epochs |
-| `train.py` | `BATCH_SIZE` | `256` | Contrastive batch size ($2N = 512$ views per step) |
+| `train.py` | `BATCH_SIZE` | `256` | Contrastive batch size ($2 \cdot N = 512$ views per gradient step) |
 | `train.py` | `LR` / `--lr` | `1e-3` (`0.001`) | Initial learning rate for `AdamW` with `CosineAnnealingLR` ($\eta_{\min} = 10^{-6}$) |
-| `train.py` | `TEMP` ($\tau$) | `0.5` | Temperature parameter in `nt_xent_loss(z1, z2, temperature=0.5)` |
-| `train.py` | `WEIGHT_DECAY` | `1e-4` | L2 regularization coefficient for `AdamW` |
+| `train.py` | `TEMP` ($\tau$) | `0.5` | Temperature hyperparameter in $\text{NT-Xent}$ loss ($\tau = 0.5$) |
+| `train.py` | `WEIGHT_DECAY` | `1e-4` | $L_2$ regularization coefficient for `AdamW` |
 | `fine_tune.py` | `PATIENCE` | `8` | Early stopping patience (epochs without validation accuracy improvement) |
 | `fine_tune.py` | `MAX_TRAIN` / `MAX_TEST` | `20000` / `8000` | Maximum labeled HDF5 patches loaded into RAM for linear probing / fine-tuning |
 | `fine_tune.py` | `--finetune-encoder` | `False` | Unfreezes `encoder.layer4` parameters while keeping BatchNorm in `.eval()` mode |
 | `inference.py` | `CLASS_MAP` | `{0: "Normal", 1: "Tumor"}` | Output label mapping for `nn.Linear(512, 2)` logits |
-| `inference.py` | `Normalize(mean, std)` | `mean=[0.7011, 0.5859, 0.7054]`, `std=[0.2128, 0.2438, 0.1955]` | PCam channel-wise RGB normalization statistics applied to `96x96` tensors |
+| `inference.py` | `Normalize(mean, std)` | `mean=[0.7011, 0.5859, 0.7054]`, `std=[0.2128, 0.2438, 0.1955]` | PCam channel-wise RGB normalization statistics applied to $96 \times 96$ tensors |
+| `inference.py` | `--tta` | `False` | 8-fold dihedral Test-Time Augmentation ($D_4$ symmetry group) |
 | `compare_baselines.py` | `MAX_SAMPLES` | `6000` | Validation samples used for LBFGS (`lr=0.1`, `max_iter=100`, `strong_wolfe`) linear probing |
 
 ---

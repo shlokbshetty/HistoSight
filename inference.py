@@ -1,23 +1,25 @@
 # =============================================================================
 # inference.py — Single Image & Batch Prediction
 #
-# Used by FastAPI backend.
-# predict_single(image_path) → {class, confidence}
-# predict_batch(folder_path) → {predictions, accuracy, loss}
+# Used by FastAPI backend and CLI diagnostics.
+# predict_single(image_path, tta=False) → {class, confidence, probabilities, tta}
+# predict_batch(folder_path, tta=False) → {predictions, accuracy, loss, tta}
 # =============================================================================
 
 import os
 import sys
 import json
+import argparse
+from typing import Optional, Tuple, Dict, Any
 
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.transforms as T
 import torchvision.models as models
 
 from PIL import Image
-from torch.cuda.amp import autocast
 
 # ======================
 # PATHS
@@ -47,8 +49,8 @@ inference_transform = T.Compose([
 # ======================
 # MODEL LOADING (CACHED)
 # ======================
-_encoder    = None
-_classifier = None
+_encoder: Optional[nn.Module] = None
+_classifier: Optional[nn.Module] = None
 
 
 def _load_models():
@@ -71,7 +73,7 @@ def _load_models():
     # Load either fine-tuned encoder or pre-trained SimCLR encoder
     if os.path.exists(BEST_ENCODER):
         print(f"[INFO] Loading fine-tuned encoder checkpoint from {BEST_ENCODER}")
-        encoder_ckpt = torch.load(BEST_ENCODER, map_location=DEVICE)
+        encoder_ckpt = torch.load(BEST_ENCODER, map_location=DEVICE, weights_only=True)
         model_state = encoder_ckpt.get('model_state', encoder_ckpt.get('model', encoder_ckpt))
         encoder_state = {
             k.replace("encoder.", ""): v
@@ -80,7 +82,7 @@ def _load_models():
         encoder.load_state_dict(encoder_state, strict=True)
     elif os.path.exists(BEST_SIMCLR):
         print(f"[INFO] Loading pre-trained SimCLR encoder from {BEST_SIMCLR}")
-        simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE)
+        simclr_ckpt = torch.load(BEST_SIMCLR, map_location=DEVICE, weights_only=True)
         model_state = simclr_ckpt.get('model_state', simclr_ckpt.get('model', None))
         encoder_state = {
             k.replace("encoder.", ""): v
@@ -98,7 +100,7 @@ def _load_models():
 
     # Classifier
     classifier = nn.Linear(512, 2).to(DEVICE)
-    clf_ckpt   = torch.load(BEST_CLASSIFIER, map_location=DEVICE)
+    clf_ckpt   = torch.load(BEST_CLASSIFIER, map_location=DEVICE, weights_only=True)
     clf_state  = clf_ckpt.get('classifier_state', clf_ckpt)
     classifier.load_state_dict(clf_state)
     classifier.eval()
@@ -108,56 +110,106 @@ def _load_models():
     return _encoder, _classifier
 
 
-def _predict_tensor(img_tensor: torch.Tensor):
-    """Run inference on a single (1, C, H, W) tensor. Returns (class_name, confidence)."""
+def get_dihedral_tta_batch(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Generate the 8 dihedral transformations (D4 symmetry group: 4 rotations x 2 flips)
+    for an input tensor of shape (B, C, H, W).
+    Returns tensor of shape (8*B, C, H, W).
+    """
+    views = []
+    for flip in (False, True):
+        x = torch.flip(tensor, dims=[-1]) if flip else tensor
+        for k in range(4):
+            views.append(torch.rot90(x, k, dims=(-2, -1)))
+    return torch.cat(views, dim=0)
+
+
+def _predict_tensor(img_tensor: torch.Tensor, tta: bool = False) -> Tuple[str, float, torch.Tensor]:
+    """
+    Run inference on a single (1, C, H, W) tensor.
+    If tta=True, averages softmax probabilities over the 8 dihedral transformations (D4 group).
+    Returns (class_name, confidence, probs_tensor_1x2).
+    """
     encoder, classifier = _load_models()
+    device_type = "cuda" if DEVICE == "cuda" else "cpu"
+
     with torch.no_grad():
-        with autocast(enabled=(DEVICE == "cuda")):
-            features = encoder(img_tensor)
-            logits   = classifier(features)
-            probs    = torch.softmax(logits, dim=1)
+        with torch.amp.autocast(device_type=device_type, enabled=(DEVICE == "cuda")):
+            if tta:
+                tta_batch = get_dihedral_tta_batch(img_tensor)
+                features = encoder(tta_batch)
+                logits = classifier(features)
+                probs_all = torch.softmax(logits, dim=1)
+                probs = probs_all.mean(dim=0, keepdim=True)
+            else:
+                features = encoder(img_tensor)
+                logits   = classifier(features)
+                probs    = torch.softmax(logits, dim=1)
 
     predicted_idx  = probs.argmax(dim=1).item()
     confidence     = probs[0, predicted_idx].item()
     class_name     = CLASS_MAP[predicted_idx]
-    return class_name, confidence
+    return class_name, confidence, probs
 
 # ======================
 # PUBLIC API
 # ======================
-def predict_single(image_path: str) -> dict:
+def predict_single(image_path: str, tta: bool = False) -> Dict[str, Any]:
     """
-    Predict a single image.
+    Predict tumor vs. normal tissue for a single histopathology patch.
 
     Args:
         image_path: Path to an image file.
+        tta: Whether to apply 8-fold dihedral Test-Time Augmentation (D4 symmetry).
 
     Returns:
-        {"class": "Tumor"|"Normal", "confidence": float}
+        {
+            "class": "Tumor" | "Normal",
+            "confidence": float,
+            "probabilities": {"Normal": float, "Tumor": float},
+            "tta": bool
+        }
     """
     img = Image.open(image_path).convert("RGB")
     import stain_norm
     img = stain_norm.normalize_image(img)
     tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
-    class_name, confidence = _predict_tensor(tensor)
-    return {"class": class_name, "confidence": round(confidence, 4)}
+    class_name, confidence, probs = _predict_tensor(tensor, tta=tta)
+    return {
+        "class": class_name,
+        "confidence": round(confidence, 4),
+        "probabilities": {
+            "Normal": round(probs[0, 0].item(), 4),
+            "Tumor":  round(probs[0, 1].item(), 4),
+        },
+        "tta": tta,
+    }
 
 
-def predict_batch(folder_path: str) -> dict:
+def predict_batch(folder_path: str, tta: bool = False) -> Dict[str, Any]:
     """
-    Predict all images in a folder.
+    Predict all histopathology patches in a directory.
 
     Optionally reads ground-truth labels from a `labels.json` file in the
     folder with format: {"filename.png": 0_or_1, ...}
 
     Args:
-        folder_path: Path to folder containing image files.
+        folder_path: Path to directory containing image files.
+        tta: Whether to apply 8-fold dihedral Test-Time Augmentation.
 
     Returns:
         {
-          "predictions": [{"file": str, "class": str, "confidence": float}, ...],
+          "predictions": [
+              {
+                  "file": str,
+                  "class": str,
+                  "confidence": float,
+                  "probabilities": {"Normal": float, "Tumor": float}
+              }, ...
+          ],
           "accuracy": float | None,
-          "loss": float | None
+          "loss": float | None,
+          "tta": bool
         }
     """
     if not os.path.isdir(folder_path):
@@ -183,7 +235,7 @@ def predict_batch(folder_path: str) -> dict:
     total_loss = 0.0
 
     criterion = nn.CrossEntropyLoss(reduction="sum")
-    encoder, classifier = _load_models()
+    device_type = "cuda" if DEVICE == "cuda" else "cpu"
 
     for fname in sorted(image_files):
         fpath = os.path.join(folder_path, fname)
@@ -193,29 +245,28 @@ def predict_batch(folder_path: str) -> dict:
             img    = stain_norm.normalize_image(img)
             tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
 
-            with torch.no_grad():
-                with autocast(enabled=(DEVICE == "cuda")):
-                    features = encoder(tensor)
-                    logits   = classifier(features)
-                    probs    = torch.softmax(logits, dim=1)
-
-            idx        = probs.argmax(dim=1).item()
-            confidence = probs[0, idx].item()
-            class_name = CLASS_MAP[idx]
+            class_name, confidence, probs = _predict_tensor(tensor, tta=tta)
 
             predictions.append({
-                "file":       fname,
-                "class":      class_name,
-                "confidence": round(confidence, 4),
+                "file":          fname,
+                "class":         class_name,
+                "confidence":    round(confidence, 4),
+                "probabilities": {
+                    "Normal": round(probs[0, 0].item(), 4),
+                    "Tumor":  round(probs[0, 1].item(), 4),
+                },
             })
 
             # Compute loss/accuracy if label available
             if fname in ground_truth:
                 gt = ground_truth[fname]
                 label_tensor = torch.tensor([gt], dtype=torch.long).to(DEVICE)
-                loss_val = criterion(logits, label_tensor).item()
+                # Use log-probs as surrogate logits for calibrated cross-entropy
+                log_probs = torch.log(probs.clamp(min=1e-7))
+                loss_val = criterion(log_probs, label_tensor).item()
+                pred_idx = probs.argmax(dim=1).item()
                 total_loss += loss_val
-                correct    += int(idx == gt)
+                correct    += int(pred_idx == gt)
                 total      += 1
 
         except Exception as e:
@@ -228,37 +279,14 @@ def predict_batch(folder_path: str) -> dict:
         "predictions": predictions,
         "accuracy":    round(accuracy, 4) if accuracy is not None else None,
         "loss":        round(avg_loss, 4) if avg_loss is not None else None,
+        "tta":         tta,
     }
-
-
-# ======================
-# CLI TEST
-# ======================
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--image",  type=str, help="Path to single image")
-    parser.add_argument("--folder", type=str, help="Path to image folder")
-    args = parser.parse_args()
-
-    if args.image:
-        result = predict_single(args.image)
-        print(f"Prediction: {result['class']}  ({result['confidence']*100:.1f}%)")
-    elif args.folder:
-        result = predict_batch(args.folder)
-        print(f"Predictions: {len(result['predictions'])} images")
-        if result["accuracy"] is not None:
-            print(f"Accuracy: {result['accuracy']*100:.2f}%")
-        if result["loss"] is not None:
-            print(f"Loss: {result['loss']:.4f}")
-    else:
-        print("Use --image <path> or --folder <path>")
 
 
 # ======================
 # GRAD-CAM SALIENCY MAP
 # ======================
-def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict:
+def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> Dict[str, Any]:
     """
     Generate Grad-CAM saliency map for an input image.
 
@@ -267,13 +295,16 @@ def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict
         target_layer_name: Target conv layer (default: 'layer4' for ResNet18)
 
     Returns:
-        {"class": str, "confidence": float, "saliency_map": list[list[float]] (96x96, 0-1)}
+        {
+            "class": str,
+            "confidence": float,
+            "probabilities": {"Normal": float, "Tumor": float},
+            "saliency_map": list[list[float]] (96x96, 0-1)
+        }
     """
-    import torch.nn.functional as F_nn
-    import numpy as np
-
     encoder, classifier = _load_models()
     encoder.eval()
+    device_type = "cuda" if DEVICE == "cuda" else "cpu"
 
     # Storage for hooks
     activations = {}
@@ -299,9 +330,11 @@ def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict
         tensor = inference_transform(img).unsqueeze(0).to(DEVICE)
 
         # Forward
-        feats  = encoder(tensor)
-        logits = classifier(feats)
-        probs  = torch.softmax(logits, dim=1)
+        with torch.amp.autocast(device_type=device_type, enabled=(DEVICE == "cuda")):
+            feats  = encoder(tensor)
+            logits = classifier(feats)
+            probs  = torch.softmax(logits, dim=1)
+
         pred_idx   = probs.argmax(dim=1).item()
         confidence = probs[0, pred_idx].item()
 
@@ -313,10 +346,10 @@ def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict
         # Grad-CAM: global average pool gradients → weight activations
         weights = gradients["feat"].mean(dim=(2, 3), keepdim=True)  # (1, C, 1, 1)
         cam     = (weights * activations["feat"]).sum(dim=1, keepdim=True)  # (1, 1, H, W)
-        cam     = F_nn.relu(cam)
+        cam     = F.relu(cam)
 
         # Upsample to input size and normalize
-        cam = F_nn.interpolate(cam, size=(96, 96), mode="bilinear", align_corners=False)
+        cam = F.interpolate(cam, size=(96, 96), mode="bilinear", align_corners=False)
         cam = cam.squeeze().cpu().numpy()
         cam_min, cam_max = cam.min(), cam.max()
         if cam_max > cam_min:
@@ -325,10 +358,42 @@ def generate_gradcam(image_path: str, target_layer_name: str = "layer4") -> dict
             cam = np.zeros_like(cam)
 
         return {
-            "class":       CLASS_MAP[pred_idx],
-            "confidence":  round(confidence, 4),
-            "saliency_map": cam.tolist(),
+            "class":         CLASS_MAP[pred_idx],
+            "confidence":    round(confidence, 4),
+            "probabilities": {
+                "Normal": round(probs[0, 0].item(), 4),
+                "Tumor":  round(probs[0, 1].item(), 4),
+            },
+            "saliency_map":  cam.tolist(),
         }
     finally:
         fh.remove()
         bh.remove()
+
+
+# ======================
+# CLI TEST
+# ======================
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="HistoSight Patch Inference & Diagnostic Engine")
+    parser.add_argument("--image",  type=str, help="Path to single image")
+    parser.add_argument("--folder", type=str, help="Path to image folder")
+    parser.add_argument("--tta",    action="store_true", help="Enable 8-fold dihedral Test-Time Augmentation (D4 group)")
+    args = parser.parse_args()
+
+    if args.image:
+        result = predict_single(args.image, tta=args.tta)
+        tta_str = " (TTA 8x enabled)" if args.tta else ""
+        print(f"Prediction: {result['class']}  ({result['confidence']*100:.1f}%){tta_str}")
+        print(f"Probabilities: Normal: {result['probabilities']['Normal']*100:.1f}%, Tumor: {result['probabilities']['Tumor']*100:.1f}%")
+    elif args.folder:
+        result = predict_batch(args.folder, tta=args.tta)
+        tta_str = " [with TTA]" if args.tta else ""
+        print(f"Predictions: {len(result['predictions'])} images{tta_str}")
+        if result["accuracy"] is not None:
+            print(f"Accuracy: {result['accuracy']*100:.2f}%")
+        if result["loss"] is not None:
+            print(f"Loss: {result['loss']:.4f}")
+    else:
+        print("Use --image <path> or --folder <path> [--tta]")
+

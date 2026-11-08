@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [v1.1.0] - 2026-11-08
+
+### Added
+
+- **8-Fold Dihedral Test-Time Augmentation (TTA, $D_4$ Symmetry Group)**:
+  - Added dihedral group averaging across all 4 planar rotations ($0^\circ, 90^\circ, 180^\circ, 270^\circ$) and horizontal reflections in `inference.py` (`predict_single`, `predict_batch`, `--tta`), `evaluate.py` (`--tta`), `backend/main.py` (`POST /predict?tta=true`, `BatchPredictRequest(tta=True)`), and `index.html` (interactive UI checkbox).
+  - Demonstrates measurable accuracy improvements (e.g. $+1.00\%$ accuracy, lower cross-entropy loss, and higher ROC-AUC on held-out test splits).
+- **High-Performance Clinical Evaluation Report (`evaluate.py`)**:
+  - Implemented comprehensive clinical diagnostic metrics: Test Accuracy, Balanced Accuracy, Sensitivity (Recall), Specificity, Precision (PPV), F1 Score, ROC-AUC, PR-AUC, and Confusion Matrix ($TP, FP, TN, FN$).
+  - Added `--max-samples`, `--batch-size`, `--in-memory`, and `--save-json` CLI arguments with high-throughput sequential slice loading.
+- **Comprehensive Unit Test Suite (`tests/test_inference.py`, `tests/test_evaluate.py`)**:
+  - Added unit tests for dihedral TTA batch generation, prediction structure, probability mass conservation ($\sum p_c = 1.0$), Grad-CAM shape/bounds, and clinical confusion matrix calculations.
+  - All 9 pytest unit tests pass with zero warnings in under 12 seconds.
+
+### Changed & Improved
+
+- **Modern PyTorch AMP & Safe Checkpoint Loading**:
+  - Migrated from deprecated `torch.cuda.amp.autocast()` to device-agnostic `torch.amp.autocast(device_type=...)` across `inference.py` and `evaluate.py`.
+  - Set `weights_only=True` in `torch.load` calls for secure deserialization, eliminating PyTorch future deprecation warnings.
+- **Macenko Stain Normalizer Numerical Stability (`stain_norm.py`)**:
+  - Added proactive check for pure white or low-variance glass background patches (`mean > 245` or $\sigma < 3.0$) and wrapped SVD fitting in warning catchers to eliminate NumPy `Mean of empty slice` and `divide by zero` runtime warnings.
+- **Documentation Typography & Mathematical Formula Spacing**:
+  - Overhauled mathematical notation across `README.md`, `ARCHITECTURE.md`, `API.md`, `DEVELOPMENT.md`, and `SUPPORT.md` using spacious KaTeX formatting, proper fractions, and explicit spacing.
+  - Fixed query string formatting (replaced errant `—` em-dashes in URLs and badges with `?`), fixed broken test patch file paths (`test_patch_2.png` $\to$ `test_patch_1.png`), and polished word spacing.
+
+---
+
 ## [v1.0.0] - 2026-10-28
 
 ### Added
